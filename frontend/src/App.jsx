@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import AuthPage from './pages/AuthPage.jsx'
 import Dashboard from './pages/Dashboard.jsx'
-import VehicleDetail from './pages/VehicleDetail.jsx'
+import VehicleDetail from './components/VehicleDetail.jsx'
 import Profile from './pages/Profile.jsx'
 import AdminUsers from './pages/admin/AdminUsers.jsx'
 import AdminVehicles from './pages/admin/AdminVehicles.jsx'
