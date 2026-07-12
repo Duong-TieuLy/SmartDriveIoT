@@ -71,7 +71,7 @@ export default function Dashboard() {
               </span>
               <div className="stat-text">
                 <span className="stat-value">{stats.availableCount}</span>
-                <span className="stat-label">Xe sẵn sàng</span>
+                <span className="stat-label">Xe có thể sử dụng</span>
               </div>
             </div>
             <div className="stat-card">

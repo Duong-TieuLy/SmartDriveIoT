@@ -1,0 +1,336 @@
+/* ================================================================
+   VehicleDetail.css
+   Style bổ sung cho phần điều khiển mở rộng: Thủ công (nút bấm / camera)
+   và Tự động. File này dùng chung các biến màu (--cyan, --amber, ...)
+   đã khai báo trong file CSS gốc (:root) của dự án — hãy đảm bảo file đó
+   được import trước file này.
+   ================================================================ */
+
+/* ---------- Khối bảng chọn hình thức điều khiển thủ công ---------- */
+.manual-panel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.manual-subselect {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.subselect-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.subselect-btn:hover {
+  border-color: var(--cyan);
+  color: var(--text);
+}
+.subselect-btn.is-active {
+  border-color: var(--cyan);
+  background: var(--cyan-dim);
+  color: var(--cyan);
+}
+
+/* ---------- Điều khiển bằng nút bấm (D-pad) ---------- */
+.dpad-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 0 4px;
+}
+
+.dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 56px);
+  grid-template-rows: repeat(3, 56px);
+  grid-template-areas:
+    '.    up    .'
+    'left .     right'
+    '.    down  .';
+  gap: 8px;
+}
+
+.dpad-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+}
+.dpad-btn:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+.dpad-btn:active {
+  transform: scale(0.94);
+  background: var(--cyan-dim);
+}
+
+.dpad-up {
+  grid-area: up;
+}
+.dpad-down {
+  grid-area: down;
+}
+.dpad-left {
+  grid-area: left;
+}
+.dpad-right {
+  grid-area: right;
+}
+
+.dpad-hint {
+  font-size: 12px;
+  color: var(--text-faint);
+  text-align: center;
+  margin: 0;
+}
+
+/* ---------- Điều khiển bằng camera / nhận diện cử chỉ tay ---------- */
+.camera-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.camera-view {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #05080b;
+  border: 1px solid var(--border);
+}
+
+.camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Lật ngang để giống hiệu ứng soi gương, dễ điều khiển trực quan hơn */
+  transform: scaleX(-1);
+}
+
+.camera-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.camera-overlay-error {
+  background: rgba(5, 8, 11, 0.85);
+  color: var(--danger);
+}
+
+.gesture-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--cyan);
+}
+.gesture-status::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 0 3px var(--cyan-dim);
+  flex-shrink: 0;
+}
+
+.control-hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* ---------- Chế độ tự động ---------- */
+.auto-panel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.auto-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: var(--cyan);
+  color: #06141b;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.15s ease;
+}
+.auto-toggle-btn:hover {
+  box-shadow: 0 8px 24px rgba(0, 229, 199, 0.25);
+  transform: translateY(-1px);
+}
+.auto-toggle-btn.is-running {
+  background: var(--danger);
+  color: #2a0b12;
+}
+.auto-toggle-btn.is-running:hover {
+  box-shadow: 0 8px 24px rgba(255, 84, 112, 0.25);
+}
+
+.auto-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.auto-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 0 4px var(--cyan-dim);
+  flex-shrink: 0;
+  animation: auto-status-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes auto-status-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auto-status-dot {
+    animation: none;
+  }
+}
+
+/* ---------- Nút báo lỗi đến admin ---------- */
+.report-issue-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 84, 112, 0.35);
+  background: rgba(255, 84, 112, 0.08);
+  color: var(--danger);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.report-issue-btn:hover {
+  background: rgba(255, 84, 112, 0.16);
+  border-color: var(--danger);
+}
+
+/* ---------- Nội dung form báo lỗi trong modal ---------- */
+.report-textarea {
+  resize: vertical;
+  min-height: 96px;
+  padding: 12px 14px;
+  line-height: 1.6;
+  font-family: var(--font-body);
+}
+
+/* ---------- Trạng thái gửi báo cáo thành công ---------- */
+.report-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 8px 0 4px;
+}
+.report-success-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cyan-dim);
+  color: var(--cyan);
+  margin-bottom: 6px;
+}
+.report-success-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+.report-success-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 14px;
+  max-width: 320px;
+}
+.report-success .btn-primary {
+  width: 100%;
+  margin-top: 0;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 640px) {
+  .manual-subselect {
+    grid-template-columns: 1fr;
+  }
+  .dpad {
+    grid-template-columns: repeat(3, 52px);
+    grid-template-rows: repeat(3, 52px);
+  }
+  .section-heading {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .report-issue-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
