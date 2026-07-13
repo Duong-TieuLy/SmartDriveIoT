@@ -1,0 +1,41 @@
+package com.example.smartdriveiot.device;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/devices")
+@RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('USER', 'ADMIN')") // Phân hệ xe yêu cầu phải đăng nhập
+public class DeviceController {
+
+    private final DeviceService deviceService;
+
+    // Đăng ký một xe mới (Truyền ID người dùng sở hữu xe qua tham số cấu hình hoặc header)
+    @PostMapping("/register/{userId}")
+    public ResponseEntity<DeviceResponse> registerDevice(@RequestBody DeviceCreateRequest request, @PathVariable Long userId) {
+        return ResponseEntity.ok(deviceService.registerDevice(request, userId));
+    }
+
+    // Chia sẻ xe cho tài xế khác (userId là ID của chủ xe hiện tại)
+    @PostMapping("/{deviceId}/share/{userId}")
+    public ResponseEntity<String> shareDevice(@PathVariable Long deviceId, @RequestBody ShareDeviceRequest request, @PathVariable Long userId) {
+        return ResponseEntity.ok(deviceService.shareDevice(deviceId, request, userId));
+    }
+
+    // Lấy danh sách xe của tôi
+    @GetMapping("/my-devices/{userId}")
+    public ResponseEntity<List<DeviceResponse>> getMyDevices(@PathVariable Long userId) {
+        return ResponseEntity.ok(deviceService.getMyDevices(userId));
+    }
+
+    // Xem lịch sử đo khoảng cách của xe
+    @GetMapping("/{deviceId}/telemetry")
+    public ResponseEntity<List<TelemetryResponse>> getDeviceTelemetry(@PathVariable Long deviceId) {
+        return ResponseEntity.ok(deviceService.getDeviceTelemetry(deviceId));
+    }
+}
