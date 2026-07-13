@@ -1,15 +1,52 @@
 services:
+  # 1. Dịch vụ Cơ sở dữ liệu (MySQL)
   mysql:
     image: mysql:8.4
     container_name: smartdrive-mysql
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_ROOT_PASSWORD: "123456"
       MYSQL_DATABASE: smart_drive_iot
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck: # Đảm bảo MySQL khởi động hoàn toàn trước khi Backend kết nối
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # 2. Dịch vụ Backend (Spring Boot - Java 21)
+  backend:
+    build:
+      context: ./backend/SmartDriveIoT
+      dockerfile: Dockerfile
+    container_name: smartdrive-backend
+    restart: always
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}" # Nhận PORT động từ Railway hoặc mặc định 8080 ở Local
+    environment:
+      - PORT=${PORT:-8080}
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/smart_drive_iot?allowPublicKeyRetrieval=true&useSSL=false&createDatabaseIfNotExist=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=123456
+    depends_on:
+      mysql:
+        condition: service_healthy # Chỉ chạy backend khi mysql đã sẵn sàng tiếp nhận kết nối
+
+  # 3. Dịch vụ Frontend (Vite / React)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: smartdrive-frontend
+    restart: always
+    ports:
+      - "5173:80" # Local truy cập qua cổng 5173, map vào cổng 80 (Nginx) của Container
+    depends_on:
+      - backend
+
+# Khai báo Volume để lưu trữ dữ liệu MySQL không bị mất khi restart container
 volumes:
   mysql_data:
