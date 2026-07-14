@@ -32,41 +32,43 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable) // Tắt CSRF vì hệ thống chạy Stateless REST API
-                .cors(cors->cors.configurationSource(corsConfigurationSource()))
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         // Sử dụng AntPathRequestMatcher để Spring Boot 3 nhận diện chính xác
                         .requestMatchers(new AntPathRequestMatcher("/api/auth/**")).permitAll()
                         .requestMatchers(new AntPathRequestMatcher("/ws/**")).permitAll()
-                        .anyRequest().authenticated()
-                )
+                        .anyRequest().authenticated())
                 .exceptionHandling(exception -> exception
                         // 1. XỬ LÝ LỖI 401: Khi không truyền Token hoặc Token hoàn toàn vô giá trị
                         .authenticationEntryPoint((request, response, authException) -> {
                             response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED);
                             response.setCharacterEncoding("UTF-8");
                             response.setContentType("application/json");
-                            response.getWriter().write("{\"status\": 401, \"error\": \"Chua xac thuc: " + authException.getMessage() + "\"}");
+                            response.getWriter().write("{\"status\": 401, \"error\": \"Chua xac thuc: "
+                                    + authException.getMessage() + "\"}");
                         })
-                        // 2. BỔ SUNG XỬ LÝ LỖI 403: Khi đã có Token nhưng sai Quyền (USER vào cổng ADMIN)
+                        // 2. BỔ SUNG XỬ LÝ LỖI 403: Khi đã có Token nhưng sai Quyền (USER vào cổng
+                        // ADMIN)
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
                             response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_FORBIDDEN);
                             response.setCharacterEncoding("UTF-8");
                             response.setContentType("application/json");
-                            response.getWriter().write("{\"status\": 403, \"error\": \"Tu choi truy cap: Khong du tham quyen!\"}");
-                        })
-                )
+                            response.getWriter()
+                                    .write("{\"status\": 403, \"error\": \"Tu choi truy cap: Khong du tham quyen!\"}");
+                        }))
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
+
     // Bean cấu hình chi tiết CORS dành riêng cho Spring Security
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173", "https://ten-mien-frontend-cua-ban.com", "https://nonfertile-aiden-cryptogamical.ngrok-free.dev"));
+        configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173", "https://ten-mien-frontend-cua-ban.com",
+                "https://nonfertile-aiden-cryptogamical.ngrok-free.dev", "http://127.0.0.1:5500", "http://localhost:5500"));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Collections.singletonList("*"));
         configuration.setAllowCredentials(true);
@@ -75,6 +77,7 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
