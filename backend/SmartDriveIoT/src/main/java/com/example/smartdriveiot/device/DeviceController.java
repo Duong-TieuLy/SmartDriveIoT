@@ -38,4 +38,8 @@ public class DeviceController {
     public ResponseEntity<List<TelemetryResponse>> getDeviceTelemetry(@PathVariable Long deviceId) {
         return ResponseEntity.ok(deviceService.getDeviceTelemetry(deviceId));
     }
+    @GetMapping("/by-email")
+    public ResponseEntity<List<DeviceResponse>> getDevicesByEmail(@RequestParam String email) {
+        return ResponseEntity.ok(deviceService.getDevicesByEmail(email));
+    }
 }

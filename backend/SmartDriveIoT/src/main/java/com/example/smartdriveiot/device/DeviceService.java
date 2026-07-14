@@ -17,7 +17,6 @@ public class DeviceService {
     private final UserRepository userRepository;
     private final TelemetryDataRepository telemetryDataRepository;
 
-    // 1. Đăng ký thiết bị mới (Gán chủ sở hữu hiện tại)
     public DeviceResponse registerDevice(DeviceCreateRequest request, Long ownerId) {
         if (deviceRepository.existsByMacAddress(request.macAddress())) {
             throw new RuntimeException("Địa chỉ MAC này đã được đăng ký!");
@@ -36,13 +35,11 @@ public class DeviceService {
         return mapToDeviceResponse(savedDevice);
     }
 
-    // 2. Chia sẻ quyền lái xe cho tài xế khác qua Email
     @Transactional
     public String shareDevice(Long deviceId, ShareDeviceRequest request, Long currentUserId) {
         Device device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy thiết bị!"));
 
-        // Chỉ chủ xe mới có quyền chia sẻ xe này
         if (!device.getOwner().getId().equals(currentUserId)) {
             throw new RuntimeException("Bạn không có quyền chia sẻ thiết bị này!");
         }
@@ -59,29 +56,39 @@ public class DeviceService {
         return "Chia sẻ quyền truy cập thiết bị thành công!";
     }
 
-    // 3. Lấy danh sách xe mà User đang sở hữu
+    // 3. Lấy danh sách xe mà User đang sở hữu (Đã vá lỗi 401)
+    @Transactional(readOnly = true) // 🔴 Thêm dòng này để xử lý lỗi nạp dữ liệu Lazy của owner và drivers
     public List<DeviceResponse> getMyDevices(Long ownerId) {
         return deviceRepository.findByOwnerId(ownerId).stream()
                 .map(this::mapToDeviceResponse)
                 .collect(Collectors.toList());
     }
 
-    // 4. Lấy lịch sử dữ liệu cảm biến khoảng cách của thiết bị
+    // 🔴 BỔ SUNG: Lấy danh sách xe dựa trên Email chủ sở hữu
+    @Transactional(readOnly = true)
+    public List<DeviceResponse> getDevicesByEmail(String email) {
+        if (!userRepository.existsByEmail(email)) {
+            throw new RuntimeException("Không tìm thấy người dùng với email: " + email);
+        }
+        return deviceRepository.findByOwnerEmail(email).stream()
+                .map(this::mapToDeviceResponse)
+                .collect(Collectors.toList());
+    }
+
     public List<TelemetryResponse> getDeviceTelemetry(Long deviceId) {
         return telemetryDataRepository.findByDeviceIdOrderByTimestampDesc(deviceId).stream()
                 .map(t -> new TelemetryResponse(t.getId(), t.getDevice().getId(), t.getDistanceCm(), t.getTimestamp()))
                 .collect(Collectors.toList());
     }
 
-    // Hàm phụ chuyển đổi Entity sang DTO
     private DeviceResponse mapToDeviceResponse(Device device) {
         return new DeviceResponse(
                 device.getId(),
                 device.getName(),
                 device.getMacAddress(),
                 device.getStatus(),
-                device.getOwner().getId(),
-                device.getDrivers() != null ? device.getDrivers().stream().map(User::getId).collect(Collectors.toSet()) : null,
+                device.getOwner().getId(), // 🔴 Chạm vào thuộc tính Lazy owner
+                device.getDrivers() != null ? device.getDrivers().stream().map(User::getId).collect(Collectors.toSet()) : null, // 🔴 Chạm vào thuộc tính Lazy drivers
                 device.getCreatedAt()
         );
     }

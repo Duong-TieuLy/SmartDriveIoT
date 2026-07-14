@@ -9,5 +9,6 @@ import java.util.Optional;
 public interface DeviceRepository extends JpaRepository<Device, Long> {
     Optional<Device> findByMacAddress(String macAddress);
     boolean existsByMacAddress(String macAddress);
-    List<Device> findByOwnerId(Long ownerId); // Tìm xe của chính mình sở hữu
+    List<Device> findByOwnerId(Long ownerId);
+    List<Device> findByOwnerEmail(String email);
 }
