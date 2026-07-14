@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Trash2, CheckCircle2, XCircle, AlertCircle, Users as UsersIcon, Car, Bug } from 'lucide-react'
 import AdminTopbar from '../../components/AdminTopbar.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
@@ -14,9 +14,15 @@ const TABS = [
 
 export default function AdminUsers() {
   const [tab, setTab] = useState('users')
-  const { accounts, removeAccount } = useAuth()
+  const { accounts, removeAccount, fetchAccounts } = useAuth()
   const { vehicles, approveRequest, denyRequest } = useVehicles()
 
+  useEffect(() => {
+    if (fetchAccounts) {
+      fetchAccounts()
+    }
+  }, [])
+  
   const users = accounts.filter((a) => a.role !== 'admin')
   const pendingRequests = vehicles.filter((v) => v.requestStatus === 'pending')
 

@@ -90,20 +90,15 @@ function LoginForm({ onSwitchToRegister }) {
     if (!validate()) return;
 
     setSubmitting(true);
-    try {
-      // TODO: thay bằng lệnh gọi API đăng nhập thực tế.
-      await new Promise((r) => setTimeout(r, 700));
-
-      const result = login(form.email, form.password);
-      if (!result.ok) {
-        setErrors({ password: "Email hoặc mật khẩu không đúng." });
-        return;
-      }
-
-      // Vai trò do context/backend xác định sau khi xác thực,
-      // không phải do người dùng tự chọn ở giao diện.
+    setErrors({});
+    
+    const result = await login(form.email, form.password);
+    
+    if (result.ok) {
+      // Điều hướng dựa trên role phân quyền từ backend giải mã được
       navigate(result.user.role === "admin" ? "/admin/users" : "/dashboard");
-    } finally {
+    } else {
+      setErrors({ password: result.error });
       setSubmitting(false);
     }
   }
@@ -216,26 +211,19 @@ function RegisterForm({ onSwitchToLogin }) {
     if (!validate()) return;
 
     setSubmitting(true);
-    try {
-      // TODO: thay bằng lệnh gọi API đăng ký thực tế.
-      await new Promise((r) => setTimeout(r, 900));
+    setErrors({});
 
-      // Đăng ký luôn tạo tài khoản role "user" — tài khoản admin được cấp
-      // sẵn, không có lựa chọn nào trên form này tạo ra được admin.
-      const result = register({
-        fullName: form.fullName,
-        email: form.email,
-        password: form.password,
-        role: "user",
-      });
+    const result = await register({
+      fullName: form.fullName,
+      email: form.email,
+      password: form.password,
+    });
 
-      if (!result.ok) {
-        setErrors({ email: result.error });
-        return;
-      }
-
-      navigate("/dashboard");
-    } finally {
+    if (result.ok) {
+      alert("Đăng ký thành công! Hãy đăng nhập bằng tài khoản mới.");
+      onSwitchToLogin(); // Chuyển sang tab login
+    } else {
+      setErrors({ email: result.error });
       setSubmitting(false);
     }
   }

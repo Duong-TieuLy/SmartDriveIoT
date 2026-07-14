@@ -1,91 +1,174 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { mockAccounts } from '../data/accounts.js'
+import { jwtDecode } from 'jwt-decode'
 
 const AuthContext = createContext(null)
-const SESSION_KEY = 'autox_session'
-const ACCOUNTS_KEY = 'autox_accounts'
+const TOKEN_KEY = 'autox_token'
+const API_BASE_URL = 'http://localhost:8080'
 
-function readJSON(key, fallback) {
+function getUserFromToken(token) {
+  if (!token) return null
   try {
-    const raw = localStorage.getItem(key)
-    return raw ? JSON.parse(raw) : fallback
-  } catch {
-    return fallback
+    const decoded = jwtDecode(token)
+    return {
+      id: decoded.id || decoded.sub,
+      email: decoded.email || decoded.sub,
+      fullName: decoded.fullName || decoded.name || 'Người dùng',
+      role: decoded.role?.toLowerCase() || 'user', 
+    }
+  } catch (error) {
+    console.error('Lỗi giải mã token:', error)
+    return null
   }
 }
 
-/**
- * Quản lý phiên đăng nhập + "cơ sở dữ liệu" tài khoản mẫu (lưu tạm ở
- * localStorage để demo không cần backend). Khi tích hợp API thật:
- * - login/register gọi thẳng endpoint tương ứng, bỏ hẳn mảng `accounts`.
- * - Không lưu mật khẩu ở phía client — role và thông tin phiên nên do
- *   backend trả về sau khi xác thực.
- */
 export function AuthProvider({ children }) {
-  const [accounts, setAccounts] = useState(() => readJSON(ACCOUNTS_KEY, mockAccounts))
-  const [user, setUser] = useState(() => readJSON(SESSION_KEY, null))
+  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || null)
+  const [user, setUser] = useState(() => getUserFromToken(localStorage.getItem(TOKEN_KEY)))
+  // Thêm state lưu danh sách accounts quản trị từ API
+  const [accounts, setAccounts] = useState([])
 
   useEffect(() => {
     try {
-      localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts))
-    } catch {
-      // Bỏ qua nếu trình duyệt chặn localStorage (chế độ ẩn danh...)
+      if (token) {
+        localStorage.setItem(TOKEN_KEY, token)
+        // Khi có token (đăng nhập thành công), nếu là admin thì tự động fetch danh sách user
+        if (user?.role === 'admin') {
+          fetchAccounts()
+        }
+      } else {
+        localStorage.removeItem(TOKEN_KEY)
+        setAccounts([])
+      }
+    } catch (e) {
+      console.warn("localStorage bị chặn:", e)
     }
-  }, [accounts])
+  }, [token, user?.role])
 
-  useEffect(() => {
+  // Hàm lấy danh sách tất cả account từ backend (Dành cho Admin)
+  const fetchAccounts = async () => {
     try {
-      if (user) localStorage.setItem(SESSION_KEY, JSON.stringify(user))
-      else localStorage.removeItem(SESSION_KEY)
+      const response = await fetch(`${API_BASE_URL}/api/users`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (response.ok) {
+        const data = await response.json() // Xử lý JSON từ backend
+        setAccounts(data)
+      }
+    } catch (err) {
+      console.error('Lỗi tải danh sách tài khoản:', err)
+    }
+  }
+
+  // Hàm Đăng Nhập (Tương thích cả Plain Text lẫn JSON Object)
+const login = async (email, password) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+
+    if (!response.ok) {
+      // Nếu lỗi, thử đọc JSON xem có thông báo lỗi không, không thì trả về câu mặc định
+      try {
+        const errorData = await response.json()
+        return { ok: false, error: errorData.message || 'Email hoặc mật khẩu không chính xác.' }
+      } catch {
+        return { ok: false, error: 'Email hoặc mật khẩu không chính xác.' }
+      }
+    }
+
+    // Đọc phản hồi dưới dạng chuỗi trước để tránh crash
+    const responseText = await response.text()
+    let jwtToken = ''
+
+    try {
+      // Thử parse xem có phải JSON Object không (Trường hợp: { token: "ey..." })
+      const data = JSON.parse(responseText)
+      jwtToken = data.token || data.accessToken || responseText
     } catch {
-      // Bỏ qua nếu trình duyệt chặn localStorage
+      // Nếu parse lỗi -> Bản chất backend trả về chuỗi token thuần
+      jwtToken = responseText
     }
-  }, [user])
 
-  const login = (email, password) => {
-    const account = accounts.find(
-      (a) => a.email.toLowerCase() === email.trim().toLowerCase() && a.password === password,
-    )
-    if (!account) return { ok: false }
-    const { password: _pw, ...safeAccount } = account
-    setUser(safeAccount)
-    return { ok: true, user: safeAccount }
+    const decodedUser = getUserFromToken(jwtToken)
+
+    if (!decodedUser) {
+      return { ok: false, error: 'Token phản hồi không hợp lệ.' }
+    }
+
+    setToken(jwtToken)
+    setUser(decodedUser)
+    return { ok: true, user: decodedUser }
+  } catch (err) {
+    console.error('Lỗi kết nối login:', err)
+    return { ok: false, error: 'Không thể kết nối tới máy chủ.' }
+  }
+}
+  // Hàm Đăng Ký (Tương thích cả Plain Text lẫn JSON Object từ backend)
+const register = async ({ fullName, email, password }) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fullName, email, password }),
+    })
+
+    // Đọc phản hồi dưới dạng chuỗi thô trước để tránh crash chữ 'Đ'
+    const responseText = await response.text()
+
+    if (!response.ok) {
+      try {
+        // Nếu backend trả về JSON lỗi (ví dụ: { "message": "Email đã tồn tại" })
+        const errorData = JSON.parse(responseText)
+        return { ok: false, error: errorData.message || 'Đăng ký thất bại.' }
+      } catch {
+        // Nếu backend trả về chuỗi text thô khi lỗi
+        return { ok: false, error: responseText || 'Đăng ký thất bại.' }
+      }
+    }
+
+    try {
+      // Trường hợp backend trả về JSON thành công (ví dụ: { "message": "Thành công" })
+      const data = JSON.parse(responseText)
+      return { ok: true, message: data.message || 'Đăng ký thành công.' }
+    } catch {
+      // Trường hợp backend trả về chuỗi text thô thành công (ví dụ: "Đăng ký tài khoản thành công")
+      return { ok: true, message: responseText || 'Đăng ký thành công.' }
+    }
+  } catch (err) {
+    console.error('Lỗi kết nối register:', err)
+    return { ok: false, error: 'Không thể kết nối tới máy chủ.' }
+  }
+}
+
+  // Hàm Xóa Tài Khoản qua API Backend
+  const removeAccount = async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        setAccounts((prev) => prev.filter((a) => a.id !== id))
+        return { ok: true }
+      }
+      return { ok: false, error: data.message || 'Xóa thất bại.' }
+    } catch (err) {
+      console.error('Lỗi xóa tài khoản:', err)
+      return { ok: false, error: 'Lỗi kết nối mạng.' }
+    }
   }
 
-  const register = ({ fullName, email, password, role }) => {
-    const emailNorm = email.trim().toLowerCase()
-    if (accounts.some((a) => a.email.toLowerCase() === emailNorm)) {
-      return { ok: false, error: 'Email này đã được sử dụng.' }
-    }
-    const account = {
-      id: `acc-${Date.now()}`,
-      fullName,
-      email,
-      password,
-      role, // 'passenger' | 'operator' — tài khoản admin không tự đăng ký được
-      phone: '',
-    }
-    setAccounts((prev) => [...prev, account])
-    const { password: _pw, ...safeAccount } = account
-    setUser(safeAccount)
-    return { ok: true, user: safeAccount }
-  }
-
-  const logout = () => setUser(null)
-
-  const removeAccount = (id) => {
-    setAccounts((prev) => prev.filter((a) => a.id !== id))
-  }
-
-  const updateAccount = (id, updates) => {
-    setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, ...updates } : a)))
-    setUser((u) => (u && u.id === id ? { ...u, ...updates } : u))
+  const logout = () => {
+    setToken(null)
+    setUser(null)
   }
 
   return (
-    <AuthContext.Provider
-      value={{ user, accounts, login, register, logout, removeAccount, updateAccount }}
-    >
+    <AuthContext.Provider value={{ token, user, accounts, login, register, logout, removeAccount, fetchAccounts }}>
       {children}
     </AuthContext.Provider>
   )
