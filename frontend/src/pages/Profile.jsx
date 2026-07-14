@@ -81,11 +81,11 @@ export default function Profile() {
                 Email
                 <span>{user.email}</span>
               </li>
-              <li>
+              {/* <li>
                 <Phone size={16} strokeWidth={1.75} />
                 Số điện thoại
                 <span>{user.phone || '—'}</span>
-              </li>
+              </li> */}
               <li>
                 <Shield size={16} strokeWidth={1.75} />
                 Vai trò
@@ -111,14 +111,14 @@ export default function Profile() {
                 onChange={handleChange}
                 autoComplete="email"
               />
-              <FormField
+              {/* <FormField
                 label="Số điện thoại"
                 name="phone"
                 icon={Phone}
                 value={draft.phone}
                 onChange={handleChange}
                 autoComplete="tel"
-              />
+              /> */}
 
               <div className="profile-edit-actions">
                 <button className="btn-outline btn-neutral" type="button" onClick={cancelEdit}>

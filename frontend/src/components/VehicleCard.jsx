@@ -1,17 +1,18 @@
-import { Battery, MapPin, Gauge, ArrowRight, Lock, Clock3 } from 'lucide-react'
-
-export default function VehicleCard({ vehicle, onUse, onRequest }) {
-  const isLocked = vehicle.status === 'locked'
-  const isPending = vehicle.requestStatus === 'pending'
+import { Battery, MapPin, Gauge, ArrowRight, WifiOff } from 'lucide-react'
+import '../styles/VehicleCard.css'
+export default function VehicleCard({ vehicle, onUse }) {
+  const isOnline = vehicle.connectionStatus === 'ONLINE' || vehicle.status === 'online'
 
   return (
-    <article className={`vehicle-card ${isLocked ? 'is-locked' : ''}`}>
+    <article className={`vehicle-card ${!isOnline ? 'is-offline-card' : ''}`}>
       <div className="vehicle-card-top">
         <div className="vehicle-glyph">
           <Gauge size={22} strokeWidth={1.6} />
         </div>
-        <span className={`status-badge ${isLocked ? 'badge-muted' : 'badge-cyan'}`}>
-          {isLocked ? 'CẦN QUYỀN TRUY CẬP' : 'SẴN SÀNG'}
+        
+        <span className={`status-badge ${isOnline ? 'badge-cyan' : 'badge-muted'}`}>
+          <span className={`status-dot ${isOnline ? 'is-online' : 'is-offline'}`} />
+          {isOnline ? 'ONLINE' : 'OFFLINE'}
         </span>
       </div>
 
@@ -29,22 +30,24 @@ export default function VehicleCard({ vehicle, onUse, onRequest }) {
         </li>
       </ul>
 
-      {isLocked ? (
-        isPending ? (
-          <button className="btn-outline is-pending" type="button" disabled>
-            <Clock3 size={16} strokeWidth={1.75} />
-            Đã gửi yêu cầu
-          </button>
-        ) : (
-          <button className="btn-outline" type="button" onClick={() => onRequest(vehicle.id)}>
-            <Lock size={16} strokeWidth={1.75} />
-            Yêu cầu sử dụng
-          </button>
-        )
-      ) : (
-        <button className="btn-primary btn-card" type="button" onClick={() => onUse(vehicle.id)}>
+      {isOnline ? (
+        <button 
+          className="btn-primary btn-card" 
+          type="button" 
+          onClick={() => onUse(vehicle.id)}
+        >
           Sử dụng ngay
           <ArrowRight size={16} strokeWidth={2} />
+        </button>
+      ) : (
+        <button 
+          className="btn-card btn-disabled" 
+          type="button" 
+          disabled
+          title="Thiết bị đang ngoại tuyến, không thể điều khiển"
+        >
+          <WifiOff size={16} strokeWidth={1.75} />
+          Mất kết nối (Offline)
         </button>
       )}
     </article>

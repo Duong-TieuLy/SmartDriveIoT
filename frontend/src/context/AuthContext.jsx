@@ -3,15 +3,15 @@ import { jwtDecode } from 'jwt-decode'
 
 const AuthContext = createContext(null)
 const TOKEN_KEY = 'autox_token'
-const API_BASE_URL = 'http://localhost:8080'
+const API_BASE_URL = import.meta.env.VITE_API_URL
 
 function getUserFromToken(token) {
   if (!token) return null
   try {
     const decoded = jwtDecode(token)
     return {
-      id: decoded.id || decoded.sub,
-      email: decoded.email || decoded.sub,
+      id: decoded.userId, 
+      email: decoded.sub,  
       fullName: decoded.fullName || decoded.name || 'Người dùng',
       role: decoded.role?.toLowerCase() || 'user', 
     }
@@ -20,7 +20,6 @@ function getUserFromToken(token) {
     return null
   }
 }
-
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || null)
   const [user, setUser] = useState(() => getUserFromToken(localStorage.getItem(TOKEN_KEY)))
@@ -48,7 +47,9 @@ export function AuthProvider({ children }) {
   const fetchAccounts = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/users`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}`,
+        'ngrok-skip-browser-warning': 'any-value-here'
+       }
       })
       if (response.ok) {
         const data = await response.json() // Xử lý JSON từ backend

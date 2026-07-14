@@ -173,6 +173,11 @@ public class CarWebSocketHandler extends TextWebSocketHandler {
             device.setStatus(status);
             deviceRepository.save(device);
             log.info("[DB] Cập nhật trạng thái thiết bị [{}] sang: {}", macAddress, status);
+            String statusPayload = String.format(
+                    "{\"type\":\"STATUS_CHANGE\", \"deviceId\":\"%s\", \"connectionStatus\":\"%s\"}",
+                    macAddress, status.name()
+            );
+            sessionManager.sendDataToAllUsers(statusPayload);
         });
     }
 

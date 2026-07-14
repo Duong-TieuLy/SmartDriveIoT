@@ -1,0 +1,22 @@
+/* Nút mất kết nối (Offline) được thiết kế lại cực kỳ hiện đại */
+.btn-card.btn-disabled {
+  background-color: rgba(239, 68, 68, 0.05) !important; /* Đỏ cực nhạt làm nền */
+  color: #ef4444 !important; /* Màu đỏ thương hiệu hiện đại (Red 500) */
+  border: 1px dashed rgba(239, 68, 68, 0.3) !important; /* Viền nét đứt mảnh, tinh tế */
+  cursor: not-allowed !important;
+  pointer-events: none; /* Khóa click */
+  opacity: 0.85;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  box-shadow: none !important; /* Bỏ bóng đổ thô cứng */
+}
+
+/* Tùy chỉnh icon bên trong nút khi offline (nếu muốn xoay nhẹ hoặc mờ đi) */
+.btn-card.btn-disabled svg {
+  opacity: 0.6;
+  transform: translateX(0); /* Không bị dịch chuyển như nút bình thường */
+}

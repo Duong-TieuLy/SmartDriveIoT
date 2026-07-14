@@ -334,3 +334,27 @@
     justify-content: center;
   }
 }
+/* Thêm vào file VehicleDetail.css của bạn */
+.camera-video {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  transform: scaleX(-1); /* Lật ngược camera giúp người dùng đưa tay đúng hướng */
+  background-color: #1a1a1a;
+}
+.camera-view {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.camera-video {
+  width: 100%;
+  transform: scaleX(-1);
+}
+
+.camera-overlay-canvas {
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* Giúp thao tác click chuột xuyên qua canvas */
+}

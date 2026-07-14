@@ -42,4 +42,9 @@ public class DeviceController {
     public ResponseEntity<List<DeviceResponse>> getDevicesByEmail(@RequestParam String email) {
         return ResponseEntity.ok(deviceService.getDevicesByEmail(email));
     }
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')") // Ghi đè chỉ cho phép ADMIN truy cập
+    public ResponseEntity<List<DeviceResponse>> getAllDevices() {
+        return ResponseEntity.ok(deviceService.getAllDevices());
+    }
 }

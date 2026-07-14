@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react' // 🔥 Đã thêm useEffect vào đây
 import { useNavigate } from 'react-router-dom'
 import { Car, Clock3, Zap, Search } from 'lucide-react'
 import AppTopbar from '../components/AppTopbar.jsx'
@@ -9,26 +9,43 @@ import { useVehicles } from '../context/VehicleContext.jsx'
 export default function Dashboard() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { vehicles, requestVehicle } = useVehicles()
+  const { vehicles, fetchMyVehicles, requestVehicle, loading } = useVehicles() // 🔥 Thêm requestVehicle từ context
   const [query, setQuery] = useState('')
 
-  const handleRequest = (id) => {
-    requestVehicle(id, user.id)
+  useEffect(() => {
+    if (user && user.id) {
+      fetchMyVehicles(user.id)
+    }
+  }, [user])
+
+  const handleRequest = (dbId) => {
+    // dbId là ID dạng Long từ cơ sở dữ liệu để gửi lên API chia sẻ
+    const targetEmail = prompt("Nhập Email của tài xế bạn muốn chia sẻ quyền sử dụng xe này:")
+    if (targetEmail && targetEmail.trim()) {
+      requestVehicle(dbId, user.id, targetEmail.trim())
+    }
   }
 
-  const handleUse = (id) => {
-    navigate(`/vehicle/${id}`)
+  const handleUse = (macAddress) => {
+    // macAddress (ví dụ: ESP32-TEST-MAC) được dùng làm ID định danh để kết nối WebSocket ở màn hình điều khiển
+    navigate(`/vehicle/${macAddress}`) 
   }
 
-  // Chuyển dữ liệu xe "khách quan" (assignedTo/requestedBy) thành góc nhìn
-  // của riêng người dùng đang đăng nhập, để tái dùng nguyên VehicleCard.
+  // Chuyển dữ liệu xe thực tế từ Spring Boot thành góc nhìn của riêng người dùng đang đăng nhập
   const viewVehicles = useMemo(
     () =>
-      vehicles.map((v) => ({
-        ...v,
-        status: v.assignedTo === user.id ? 'available' : 'locked',
-        requestStatus: v.requestedBy === user.id ? v.requestStatus : 'none',
-      })),
+      vehicles.map((v) => {
+        // Kiểm tra xem user hiện tại có phải chủ xe (owner) hoặc là driver được chia sẻ (sharedDrivers) hay không
+        const isOwner = v.assignedTo === user.id
+        const isShared = v.sharedDrivers && v.sharedDrivers.includes(user.id)
+        
+        return {
+          ...v,
+          // Nếu là chủ xe hoặc người được chia sẻ -> trạng thái là 'available' để sử dụng
+          status: (isOwner || isShared) ? 'available' : 'locked',
+          requestStatus: v.requestedBy === user.id ? v.requestStatus : 'none',
+        }
+      }),
     [vehicles, user.id],
   )
 
@@ -59,8 +76,7 @@ export default function Dashboard() {
             <span className="eyebrow">BẢNG ĐIỀU KHIỂN</span>
             <h1 className="dash-title">Chào mừng trở lại</h1>
             <p className="dash-subtitle">
-              Chọn xe khả dụng để bắt đầu chuyến đi, hoặc gửi yêu cầu quyền sử dụng cho các xe
-              khác trong đội.
+              Chọn xe khả dụng để bắt đầu chuyến đi, hoặc chia sẻ quyền sử dụng xe với các tài xế khác.
             </p>
           </div>
 
@@ -89,7 +105,7 @@ export default function Dashboard() {
               </span>
               <div className="stat-text">
                 <span className="stat-value">{stats.fleetCount}</span>
-                <span className="stat-label">Tổng số xe trong đội</span>
+                <span className="stat-label">Tổng số xe của bạn</span>
               </div>
             </div>
           </div>
@@ -104,37 +120,47 @@ export default function Dashboard() {
           />
         </label>
 
-        <section className="dash-section">
-          <div className="section-heading">
-            <h2>Xe bạn có thể sử dụng</h2>
-            <span className="section-count">{available.length} xe</span>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+            Đang đồng bộ dữ liệu thiết bị...
           </div>
-          {available.length === 0 ? (
-            <p className="empty-note">Không tìm thấy xe khả dụng phù hợp.</p>
-          ) : (
-            <div className="vehicle-grid">
-              {available.map((v) => (
-                <VehicleCard key={v.id} vehicle={v} onUse={handleUse} />
-              ))}
-            </div>
-          )}
-        </section>
+        ) : (
+          <>
+            <section className="dash-section">
+              <div className="section-heading">
+                <h2>Xe bạn có thể sử dụng</h2>
+                <span className="section-count">{available.length} xe</span>
+              </div>
+              {available.length === 0 ? (
+                <p className="empty-note">Không tìm thấy xe khả dụng phù hợp.</p>
+              ) : (
+                <div className="vehicle-grid">
+                  {available.map((v) => (
+                    // Truyền v.id (chính là macAddress) vào hàm onUse
+                    <VehicleCard key={v.id} vehicle={v} onUse={() => handleUse(v.id)} />
+                  ))}
+                </div>
+              )}
+            </section>
 
-        <section className="dash-section">
-          <div className="section-heading">
-            <h2>Xe cần yêu cầu quyền sử dụng</h2>
-            <span className="section-count">{restricted.length} xe</span>
-          </div>
-          {restricted.length === 0 ? (
-            <p className="empty-note">Không có xe nào cần yêu cầu quyền truy cập.</p>
-          ) : (
-            <div className="vehicle-grid">
-              {restricted.map((v) => (
-                <VehicleCard key={v.id} vehicle={v} onRequest={handleRequest} />
-              ))}
-            </div>
-          )}
-        </section>
+            <section className="dash-section">
+              <div className="section-heading">
+                <h2>Thiết bị khác (Cần chia sẻ)</h2>
+                <span className="section-count">{restricted.length} xe</span>
+              </div>
+              {restricted.length === 0 ? (
+                <p className="empty-note">Không có thiết bị nào bị giới hạn quyền truy cập.</p>
+              ) : (
+                <div className="vehicle-grid">
+                  {restricted.map((v) => (
+                    // Truyền v.dbId (id kiểu Long) vào hàm onRequest phục vụ API share của Spring Boot
+                    <VehicleCard key={v.id} vehicle={v} onRequest={() => handleRequest(v.dbId)} />
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
       </main>
     </div>
   )

@@ -1,68 +1,49 @@
 import { useState } from 'react'
-import { Plus, Pencil, UserPlus, UserMinus } from 'lucide-react'
+import { Plus, UserPlus } from 'lucide-react'
 import AdminTopbar from '../../components/AdminTopbar.jsx'
 import Modal from '../../components/Modal.jsx'
 import FormField from '../../components/FormField.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { useVehicles } from '../../context/VehicleContext.jsx'
 
-const CONDITION_LABEL = { good: 'Tốt', check: 'Cần kiểm tra', error: 'Sự cố' }
-const CONDITION_BADGE = { good: 'badge-cyan', check: 'badge-amber', error: 'badge-danger' }
-
-const emptyForm = { name: '', plate: '', location: '', distance: '', battery: 80, condition: 'good' }
+const emptyForm = { name: '', macAddress: '', targetUserId: '' }
 
 export default function AdminVehicles() {
   const { accounts } = useAuth()
-  const { vehicles, addVehicle, updateVehicle, assignVehicle, revokeVehicle } = useVehicles()
+  const { vehicles, addVehicle } = useVehicles()
+  
+  // Lọc danh sách người dùng thông thường để gán xe
   const users = accounts.filter((a) => a.role !== 'admin')
 
-  // modal: null | 'add' | { type: 'edit', id } | { type: 'assign', id }
+  // Quản lý modal: null hoặc 'add'
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState(emptyForm)
-  const [assignUserId, setAssignUserId] = useState('')
 
-  const userName = (id) => users.find((u) => u.id === id)?.fullName ?? null
+  const userName = (id) => users.find((u) => u.id === id)?.fullName ?? `User #${id}`
 
   const openAdd = () => {
     setForm(emptyForm)
     setModal('add')
   }
-  const openEdit = (v) => {
-    setForm({
-      name: v.name,
-      plate: v.plate,
-      location: v.location,
-      distance: v.distance,
-      battery: v.battery,
-      condition: v.condition,
-    })
-    setModal({ type: 'edit', id: v.id })
-  }
-  const openAssign = (v) => {
-    setAssignUserId('')
-    setModal({ type: 'assign', id: v.id })
-  }
   const closeModal = () => setModal(null)
 
   const handleFormChange = (e) => {
     const { name, value } = e.target
-    setForm((f) => ({ ...f, [name]: name === 'battery' ? Number(value) : value }))
+    setForm((f) => ({ ...f, [name]: value }))
   }
 
-  const handleSubmitVehicle = (e) => {
+  const handleSubmitVehicle = async (e) => {
     e.preventDefault()
-    if (modal === 'add') {
-      addVehicle(form)
-    } else if (modal?.type === 'edit') {
-      updateVehicle(modal.id, form)
+    if (!form.targetUserId) {
+      alert('Vui lòng chọn chủ sở hữu cho thiết bị!')
+      return
     }
-    closeModal()
-  }
 
-  const handleConfirmAssign = (e) => {
-    e.preventDefault()
-    if (!assignUserId) return
-    assignVehicle(modal.id, assignUserId)
+    // Khớp cấu trúc addVehicle(data, userId) của VehicleContext
+    await addVehicle(
+      { name: form.name, macAddress: form.macAddress },
+      form.targetUserId
+    )
     closeModal()
   }
 
@@ -74,14 +55,14 @@ export default function AdminVehicles() {
         <div className="admin-header-row">
           <div>
             <span className="eyebrow">QUẢN TRỊ</span>
-            <h1 className="dash-title">Quản lý xe</h1>
+            <h1 className="dash-title">Quản lý thiết bị IoT</h1>
             <p className="dash-subtitle">
-              Thêm xe mới, cập nhật thông tin, gán xe cho người dùng hoặc thu hồi quyền sử dụng.
+              Đăng ký xe mới vào hệ thống và kích hoạt quyền sở hữu trực tiếp cho người dùng.
             </p>
           </div>
           <button className="btn-primary btn-card admin-add-btn" type="button" onClick={openAdd}>
             <Plus size={16} strokeWidth={2} />
-            Thêm xe
+            Đăng ký xe mới
           </button>
         </div>
 
@@ -89,69 +70,49 @@ export default function AdminVehicles() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Tên xe</th>
-                <th>Biển số</th>
-                <th>Khu vực</th>
-                <th>Pin</th>
-                <th>Tình trạng</th>
-                <th>Đang gán cho</th>
-                <th aria-label="Thao tác" />
+                <th>Tên thiết bị</th>
+                <th>Địa chỉ MAC (ID WebSocket)</th>
+                <th>Database ID</th>
+                <th>Trạng thái kết nối</th>
+                <th>Chủ sở hữu (Owner)</th>
+                <th>Tài xế phụ được chia sẻ</th>
               </tr>
             </thead>
             <tbody>
               {vehicles.map((v) => (
                 <tr key={v.id}>
                   <td>{v.name}</td>
-                  <td className="mono-cell">{v.plate}</td>
-                  <td>{v.location}</td>
-                  <td className="mono-cell">{v.battery}%</td>
+                  <td className="mono-cell" style={{ color: 'var(--txt-primary)', fontWeight: 500 }}>
+                    {v.id}
+                  </td>
+                  <td className="mono-cell">{v.dbId}</td>
                   <td>
-                    <span className={`status-badge ${CONDITION_BADGE[v.condition]}`}>
-                      {CONDITION_LABEL[v.condition]}
+                    <span className={`status-badge ${v.status === 'available' ? 'badge-cyan' : 'badge-neutral'}`}>
+                      {v.status === 'available' ? 'ONLINE' : 'OFFLINE'}
                     </span>
                   </td>
-                  <td>
-                    {v.assignedTo ? (
-                      userName(v.assignedTo) ?? '—'
-                    ) : (
-                      <span className="text-faint">Chưa gán</span>
-                    )}
+                  <td style={{ fontWeight: 500 }}>
+                    {v.assignedTo ? userName(v.assignedTo) : <span className="text-faint">Hệ thống</span>}
                   </td>
-                  <td className="table-actions">
-                    <button
-                      className="icon-btn"
-                      type="button"
-                      aria-label={`Cập nhật ${v.name}`}
-                      onClick={() => openEdit(v)}
-                    >
-                      <Pencil size={15} strokeWidth={1.75} />
-                    </button>
-                    {v.assignedTo ? (
-                      <button
-                        className="icon-btn icon-btn-danger"
-                        type="button"
-                        aria-label={`Thu hồi ${v.name}`}
-                        onClick={() => revokeVehicle(v.id)}
-                      >
-                        <UserMinus size={15} strokeWidth={1.75} />
-                      </button>
+                  <td>
+                    {v.sharedDrivers && v.sharedDrivers.length > 0 ? (
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        {v.sharedDrivers.map(driverId => (
+                          <span key={driverId} className="status-badge badge-neutral">
+                            {userName(driverId)}
+                          </span>
+                        ))}
+                      </div>
                     ) : (
-                      <button
-                        className="icon-btn icon-btn-approve"
-                        type="button"
-                        aria-label={`Gán ${v.name} cho người dùng`}
-                        onClick={() => openAssign(v)}
-                      >
-                        <UserPlus size={15} strokeWidth={1.75} />
-                      </button>
+                      <span className="text-faint">—</span>
                     )}
                   </td>
                 </tr>
               ))}
               {vehicles.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="empty-note">
-                    Chưa có xe nào trong hệ thống.
+                  <td colSpan={6} className="empty-note">
+                    Chưa có thiết bị nào được đăng ký trong hệ thống.
                   </td>
                 </tr>
               )}
@@ -159,88 +120,37 @@ export default function AdminVehicles() {
           </table>
         </div>
 
-        {(modal === 'add' || modal?.type === 'edit') && (
-          <Modal title={modal === 'add' ? 'Thêm xe mới' : 'Cập nhật thông tin xe'} onClose={closeModal}>
+        {modal === 'add' && (
+          <Modal title="Đăng ký thiết bị IoT mới" onClose={closeModal}>
             <form className="auth-form" onSubmit={handleSubmitVehicle}>
               <FormField
-                label="Tên xe"
+                label="Tên thiết bị / Tên xe"
                 name="name"
                 value={form.name}
                 onChange={handleFormChange}
-                placeholder="AUTOX Model S1"
+                placeholder="Ví dụ: Xe tự hành AutoX S1"
+                required
               />
               <FormField
-                label="Biển số"
-                name="plate"
-                value={form.plate}
+                label="Địa chỉ MAC (MAC Address)"
+                name="macAddress"
+                value={form.macAddress}
                 onChange={handleFormChange}
-                placeholder="51A-000.00"
+                placeholder="Ví dụ: 24:0A:C4:X5:Y6:Z7"
+                required
               />
-              <FormField
-                label="Khu vực"
-                name="location"
-                value={form.location}
-                onChange={handleFormChange}
-                placeholder="Quận 1, TP.HCM"
-              />
-              <FormField
-                label="Khoảng cách hiển thị"
-                name="distance"
-                value={form.distance}
-                onChange={handleFormChange}
-                placeholder="1.2 km"
-              />
+
               <label className="field">
-                <span className="field-label">Phần trăm pin</span>
-                <input
-                  className="plain-input"
-                  type="number"
-                  name="battery"
-                  min="0"
-                  max="100"
-                  value={form.battery}
-                  onChange={handleFormChange}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">Tình trạng</span>
+                <span className="field-label">Chỉ định chủ sở hữu (Owner)</span>
                 <select
                   className="plain-select"
-                  name="condition"
-                  value={form.condition}
+                  name="targetUserId"
+                  value={form.targetUserId}
                   onChange={handleFormChange}
-                >
-                  <option value="good">Hoạt động tốt</option>
-                  <option value="check">Cần kiểm tra</option>
-                  <option value="error">Đang gặp sự cố</option>
-                </select>
-              </label>
-
-              <div className="profile-edit-actions">
-                <button className="btn-outline btn-neutral" type="button" onClick={closeModal}>
-                  Hủy
-                </button>
-                <button className="btn-primary btn-card" type="submit">
-                  {modal === 'add' ? 'Thêm xe' : 'Lưu thay đổi'}
-                </button>
-              </div>
-            </form>
-          </Modal>
-        )}
-
-        {modal?.type === 'assign' && (
-          <Modal title="Gán xe cho người dùng" onClose={closeModal}>
-            <form className="auth-form" onSubmit={handleConfirmAssign}>
-              <label className="field">
-                <span className="field-label">Chọn người dùng</span>
-                <select
-                  className="plain-select"
-                  value={assignUserId}
-                  onChange={(e) => setAssignUserId(e.target.value)}
                   required
                 >
                   <option value="" disabled>
-                    -- Chọn người dùng --
+                    -- Chọn tài khoản khách hàng --
                   </option>
                   {users.map((u) => (
                     <option key={u.id} value={u.id}>
@@ -250,12 +160,12 @@ export default function AdminVehicles() {
                 </select>
               </label>
 
-              <div className="profile-edit-actions">
+              <div className="profile-edit-actions" style={{ marginTop: '24px' }}>
                 <button className="btn-outline btn-neutral" type="button" onClick={closeModal}>
                   Hủy
                 </button>
                 <button className="btn-primary btn-card" type="submit">
-                  Gán xe
+                  <UserPlus size={16} /> Kiêm gán & Kích hoạt
                 </button>
               </div>
             </form>

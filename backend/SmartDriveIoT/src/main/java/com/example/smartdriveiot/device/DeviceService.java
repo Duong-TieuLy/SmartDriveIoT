@@ -81,6 +81,14 @@ public class DeviceService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public List<DeviceResponse> getAllDevices() {
+        // Lấy toàn bộ thiết bị từ DB, map sang dạng Response rồi trả về
+        return deviceRepository.findAll().stream()
+                .map(this::mapToDeviceResponse) // Hoặc hàm convert tương đương của bạn
+                .toList();
+    }
+
     private DeviceResponse mapToDeviceResponse(Device device) {
         return new DeviceResponse(
                 device.getId(),
