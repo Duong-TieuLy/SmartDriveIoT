@@ -22,11 +22,12 @@ public class JwtTokenUtil {
     }
 
     // Tạo JWT Token chứa thông tin Username, ID và Role
-    public String generateToken(Long userId, String email, Role role) {
+    public String generateToken(Long userId, String email, Role role, String fullName) {
         return Jwts.builder()
                 .setSubject(email)
                 .claim("userId", userId)
-                .claim("role", role.name()) // Lưu role thẳng vào token để phân quyền nhanh
+                .claim("role", role.name())
+                .claim("fullName", fullName)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + JWT_EXPIRATION))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
@@ -44,6 +45,10 @@ public class JwtTokenUtil {
     public String extractRole(String token) {
         Object roleClaim = extractAllClaims(token).get("role");
         return roleClaim != null ? roleClaim.toString() : null;
+    }
+    public String extractFullName(String token) {
+        Object fullNameClaim = extractAllClaims(token).get("fullName");
+        return fullNameClaim != null ? fullNameClaim.toString() : null;
     }
 
     public boolean isTokenValid(String token) {
