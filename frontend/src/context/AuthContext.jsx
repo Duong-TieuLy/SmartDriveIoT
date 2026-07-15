@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { jwtDecode } from 'jwt-decode'
+import { AuthContext } from  './AuthContextInstance'
 
-const AuthContext = createContext(null)
 const TOKEN_KEY = 'autox_token'
 const API_BASE_URL = import.meta.env.VITE_API_URL
 
@@ -97,7 +97,7 @@ const login = async (email, password) => {
     if (!decodedUser) {
       return { ok: false, error: 'Token phản hồi không hợp lệ.' }
     }
-
+    console.log(decodedUser);
     setToken(jwtToken)
     setUser(decodedUser)
     return { ok: true, user: decodedUser }
@@ -173,10 +173,4 @@ const register = async ({ fullName, email, password }) => {
       {children}
     </AuthContext.Provider>
   )
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth phải được dùng bên trong <AuthProvider>')
-  return ctx
 }

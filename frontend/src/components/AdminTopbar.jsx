@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { LogOut, Users, Car } from 'lucide-react'
-import { useAuth } from '../context/AuthContext.jsx'
+import { useAuth } from '../context/AuthContextInstance'
 
 export default function AdminTopbar() {
   const navigate = useNavigate()

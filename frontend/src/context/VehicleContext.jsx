@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react'
+import { VehicleContext } from './VehicleContextInstance'
 
-const VehicleContext = createContext(null)
 const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/devices`
 const TOKEN_KEY = 'autox_token' 
 
@@ -9,12 +9,10 @@ export function VehicleProvider({ children }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   
-  // Lưu trữ instance WebSocket toàn cục để dùng chung
   const globalWsRef = useRef(null)
   const [currentUserId, setCurrentUserId] = useState(null)
-
-  // NÂNG CẤP: State lưu trữ log debug từ xe để các component giao diện (ví dụ Terminal/Log View) có thể sub và hiển thị
   const [deviceLogs, setDeviceLogs] = useState({}) 
+  const [telemetryData, setTelemetryData] = useState([])
 
   const getAuthHeader = () => {
     const token = localStorage.getItem(TOKEN_KEY)
@@ -41,7 +39,7 @@ export function VehicleProvider({ children }) {
     requestStatus: 'none',
   })
 
-  // --- KẾT NỐI WEBSOCKET REALTIME CHO TRẠNG THÁI XE ---
+// --- KẾT NỐI WEBSOCKET REALTIME CHO TRẠNG THÁI XE ---
   useEffect(() => {
     if (!currentUserId) return
 
@@ -149,61 +147,156 @@ export function VehicleProvider({ children }) {
     }
   }
 
-  // 1. LẤY TOÀN BỘ DANH SÁCH XE (ADMIN)
-  const fetchAllVehicles = async (userId) => {
-    if(userId) setCurrentUserId(userId) 
-    setLoading(true)
-    setError(null)
+  // 🟢 HÀM MỚI: Tải và gộp chung xe sở hữu + xe được chia sẻ (Không gây nhấp nháy UI)
+  const fetchUserVehiclesCombined = async (userId) => {
+    if (!userId) return
+    setCurrentUserId(userId)
+    setLoading(true); setError(null)
     try {
-      const response = await fetch(`${API_BASE_URL}`, { headers: getAuthHeader() })
-      if (!response.ok) throw new Error('Không thể lấy toàn bộ danh sách!')
-      const data = await response.json()
-      setVehicles(data.map(mapDeviceToVehicle))
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
+      const headers = getAuthHeader()
+      // Gọi song song cả 2 API endpoint cùng lúc
+      const [myRes, sharedRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/my-devices/${userId}`, { headers }),
+        fetch(`${API_BASE_URL}/shared-with-me/${userId}`, { headers })
+      ])
+
+      let myVehicles = []
+      let sharedVehicles = []
+
+      if (myRes.ok) myVehicles = await myRes.ok ? await myRes.json() : []
+      if (sharedRes.ok) sharedVehicles = await sharedRes.ok ? await sharedRes.json() : []
+
+      // Tránh trùng lặp thiết bị trùng ID (nếu có) bằng Map
+      const combinedMap = new Map()
+      myVehicles.forEach(d => combinedMap.set(d.macAddress, mapDeviceToVehicle(d)))
+      sharedVehicles.forEach(d => combinedMap.set(d.macAddress, mapDeviceToVehicle(d)))
+
+      setVehicles(Array.from(combinedMap.values()))
+    } catch (err) { 
+      setError(err.message) 
+    } finally { 
+      setLoading(false) 
     }
   }
 
-  // 2. LẤY DANH SÁCH XE CỦA TÔI
+  const fetchAllVehicles = async (userId) => {
+    if(userId) setCurrentUserId(userId) 
+    setLoading(true); setError(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}`, { headers: getAuthHeader() })
+      if (!res.ok) throw new Error('Không thể tải toàn bộ danh sách thiết bị.')
+      const data = await res.json()
+      setVehicles(data.map(mapDeviceToVehicle))
+    } catch (err) { setError(err.message) } finally { setLoading(false) }
+  }
+
   const fetchMyVehicles = async (userId) => {
     if (!userId) return
     setCurrentUserId(userId) 
-    setLoading(true)
-    setError(null)
+    setLoading(true); setError(null)
     try {
-      const response = await fetch(`${API_BASE_URL}/my-devices/${userId}`, { headers: getAuthHeader() })
-      if (!response.ok) throw new Error('Không thể lấy danh sách thiết bị của bạn!')
-      const data = await response.json()
+      const res = await fetch(`${API_BASE_URL}/my-devices/${userId}`, { headers: getAuthHeader() })
+      if (!res.ok) throw new Error('Không thể lấy danh sách xe của bạn.')
+      const data = await res.json()
       setVehicles(data.map(mapDeviceToVehicle))
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
+    } catch (err) { setError(err.message) } finally { setLoading(false) }
   }
 
-  const addVehicle = async (data, userId) => { /* ... */ }
-  const requestVehicle = async (dbId, currentUserId, driverEmail) => { /* ... */ }
-  const getDeviceTelemetry = async (dbId) => { /* ... */ }
-  const approveRequest = async () => {}
-  const denyRequest = async () => {}
-  const removeVehicle = async () => {}
+  const addVehicle = async (vehicleForm, userId) => {
+    setLoading(true); setError(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/register/${userId}`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+        body: JSON.stringify(vehicleForm)
+      })
+      if (!res.ok) throw new Error('Đăng ký thiết bị thất bại.')
+      const newDevice = await res.json()
+      setVehicles((prev) => [...prev, mapDeviceToVehicle(newDevice)])
+      return true
+    } catch (err) { setError(err.message); return false } finally { setLoading(false) }
+  }
+
+  const requestVehicle = async (deviceId, currentUserId, driverEmail) => {
+    setLoading(true); setError(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/${deviceId}/share/${currentUserId}`, {
+        method: 'POST',
+        headers: getAuthHeader(),
+        body: JSON.stringify({ email: driverEmail })
+      })
+      if (!res.ok) throw new Error('Chia sẻ xe không thành công.')
+      
+      await fetchUserVehiclesCombined(currentUserId)
+      alert("Đã chia sẻ quyền sử dụng thiết bị thành công!")
+    } catch (err) { alert(`Lỗi: ${err.message}`) } finally { setLoading(false) }
+  }
+
+  const getDeviceTelemetry = async (deviceId) => {
+    setError(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/${deviceId}/telemetry`, { headers: getAuthHeader() })
+      if (!res.ok) throw new Error('Không thể tải lịch sử telemetry.')
+      const data = await res.json()
+      setTelemetryData(data)
+      return data
+    } catch (err) { setError(err.message); return [] }
+  }
+
+  const fetchDevicesByEmail = async (email) => {
+    setLoading(true); setError(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/by-email?email=${encodeURIComponent(email)}`, { headers: getAuthHeader() })
+      if (!res.ok) throw new Error('Không tìm thấy xe theo email này.')
+      const data = await res.json()
+      return data.map(mapDeviceToVehicle)
+    } catch (err) { setError(err.message); return [] } finally { setLoading(false) }
+  }
+
+  const removeVehicle = async (deviceId, userId) => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa thiết bị này khỏi hệ thống?")) return false
+    setLoading(true); setError(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/${deviceId}/owner/${userId}`, {
+        method: 'DELETE',
+        headers: getAuthHeader()
+      })
+      if (!res.ok) throw new Error('Xóa thiết bị thất bại.')
+      setVehicles((prev) => prev.filter((v) => v.dbId !== deviceId))
+      return true
+    } catch (err) { setError(err.message); return false } finally { setLoading(false) }
+  }
+
+  const getDriversSharedForDevice = async (deviceId, userId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/${deviceId}/drivers/owner/${userId}`, { headers: getAuthHeader() })
+      if (!res.ok) throw new Error('Lỗi lấy danh sách tài xế được share.')
+      return await res.json()
+    } catch (err) { console.error(err); return [] }
+  }
+
+  const fetchSharedDevicesForMe = async (driverId) => {
+    if (!driverId) return
+    setCurrentUserId(driverId)
+    setLoading(true); setError(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/shared-with-me/${driverId}`, { headers: getAuthHeader() })
+      if (!res.ok) throw new Error('Không thể tải danh sách xe được chia sẻ với bạn.')
+      const data = await res.json()
+      setVehicles(data.map(mapDeviceToVehicle))
+    } catch (err) { setError(err.message) } finally { setLoading(false) }
+  }
 
   return (
     <VehicleContext.Provider
       value={{
-        vehicles, loading, error, globalWsRef, sendCommand, deviceLogs, // Export thêm `deviceLogs` để màn hình Detail xe dùng hiển thị Console Log box
-        fetchMyVehicles, fetchAllVehicles, addVehicle, requestVehicle, getDeviceTelemetry,
-        approveRequest, denyRequest, removeVehicle
+        vehicles, loading, error, globalWsRef, deviceLogs, telemetryData,
+        sendCommand, fetchMyVehicles, fetchAllVehicles, addVehicle, requestVehicle, 
+        getDeviceTelemetry, fetchDevicesByEmail, removeVehicle, getDriversSharedForDevice, 
+        fetchSharedDevicesForMe, fetchUserVehiclesCombined
       }}
     >
       {children}
     </VehicleContext.Provider>
   )
-}
-
-export function useVehicles() {
-  return useContext(VehicleContext)
 }

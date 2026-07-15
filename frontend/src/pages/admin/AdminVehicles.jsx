@@ -1,16 +1,18 @@
-import { useState } from 'react'
-import { Plus, UserPlus } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, UserPlus, Trash2 } from 'lucide-react'
 import AdminTopbar from '../../components/AdminTopbar.jsx'
 import Modal from '../../components/Modal.jsx'
 import FormField from '../../components/FormField.jsx'
-import { useAuth } from '../../context/AuthContext.jsx'
-import { useVehicles } from '../../context/VehicleContext.jsx'
+import { useAuth } from '../../context/AuthContextInstance.js'
+import { useVehicles } from '../../context/VehicleContextInstance.js'
 
 const emptyForm = { name: '', macAddress: '', targetUserId: '' }
 
 export default function AdminVehicles() {
-  const { accounts } = useAuth()
-  const { vehicles, addVehicle } = useVehicles()
+  const { accounts, user } = useAuth()
+  
+  // 🔥 CẬP NHẬT: Lấy thêm hàm fetchAllVehicles và removeVehicle từ context
+  const { vehicles, loading, fetchAllVehicles, addVehicle, removeVehicle } = useVehicles()
   
   // Lọc danh sách người dùng thông thường để gán xe
   const users = accounts.filter((a) => a.role !== 'admin')
@@ -19,7 +21,14 @@ export default function AdminVehicles() {
   const [modal, setModal] = useState(null)
   const [form, setForm] = useState(emptyForm)
 
-  const userName = (id) => users.find((u) => u.id === id)?.fullName ?? `User #${id}`
+  // 🔥 CẬP NHẬT: Kích hoạt đồng bộ hóa toàn bộ dữ liệu xe khi Admin truy cập trang
+  useEffect(() => {
+    if (user && user.id) {
+      fetchAllVehicles(user.id)
+    }
+  }, [user])
+
+  const userName = (id) => users.find((u) => u.id === Number(id) || u.id === id)?.fullName ?? `User #${id}`
 
   const openAdd = () => {
     setForm(emptyForm)
@@ -40,11 +49,20 @@ export default function AdminVehicles() {
     }
 
     // Khớp cấu trúc addVehicle(data, userId) của VehicleContext
-    await addVehicle(
+    const success = await addVehicle(
       { name: form.name, macAddress: form.macAddress },
       form.targetUserId
     )
-    closeModal()
+    if (success) {
+      closeModal()
+    }
+  }
+
+  const handleDelete = async (dbId, ownerId) => {
+    // Nếu xe không có ownerId (thiết bị hệ thống), dự phòng bằng ID admin hoặc 0 tùy backend
+    const targetOwnerId = ownerId || user.id 
+    
+    await removeVehicle(dbId, targetOwnerId)
   }
 
   return (
@@ -67,57 +85,76 @@ export default function AdminVehicles() {
         </div>
 
         <div className="table-card">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Tên thiết bị</th>
-                <th>Địa chỉ MAC (ID WebSocket)</th>
-                <th>Database ID</th>
-                <th>Trạng thái kết nối</th>
-                <th>Chủ sở hữu (Owner)</th>
-                <th>Tài xế phụ được chia sẻ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {vehicles.map((v) => (
-                <tr key={v.id}>
-                  <td>{v.name}</td>
-                  <td className="mono-cell" style={{ color: 'var(--txt-primary)', fontWeight: 500 }}>
-                    {v.id}
-                  </td>
-                  <td className="mono-cell">{v.dbId}</td>
-                  <td>
-                    <span className={`status-badge ${v.status === 'available' ? 'badge-cyan' : 'badge-neutral'}`}>
-                      {v.status === 'available' ? 'ONLINE' : 'OFFLINE'}
-                    </span>
-                  </td>
-                  <td style={{ fontWeight: 500 }}>
-                    {v.assignedTo ? userName(v.assignedTo) : <span className="text-faint">Hệ thống</span>}
-                  </td>
-                  <td>
-                    {v.sharedDrivers && v.sharedDrivers.length > 0 ? (
-                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                        {v.sharedDrivers.map(driverId => (
-                          <span key={driverId} className="status-badge badge-neutral">
-                            {userName(driverId)}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-faint">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {vehicles.length === 0 && (
+          {loading && vehicles.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+              Đang đồng bộ dữ liệu thiết bị toàn hệ thống...
+            </div>
+          ) : (
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <td colSpan={6} className="empty-note">
-                    Chưa có thiết bị nào được đăng ký trong hệ thống.
-                  </td>
+                  <th>Tên thiết bị</th>
+                  <th>Địa chỉ MAC (ID WebSocket)</th>
+                  <th>Database ID</th>
+                  <th>Trạng thái kết nối</th>
+                  <th>Chủ sở hữu (Owner)</th>
+                  <th>Tài xế phụ được chia sẻ</th>
+                  <th style={{ textAlign: 'center' }}>Thao tác</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {vehicles.map((v) => (
+                  <tr key={v.id}>
+                    <td style={{ fontWeight: 500 }}>{v.name}</td>
+                    <td className="mono-cell" style={{ color: 'var(--txt-primary)', fontWeight: 500 }}>
+                      {v.id}
+                    </td>
+                    <td className="mono-cell">{v.dbId}</td>
+                    <td>
+                      {/* 🔥 CẬP NHẬT: Kiểm tra chính xác trạng thái ONLINE của phần cứng dựa vào connectionStatus */}
+                      <span className={`status-badge ${v.connectionStatus === 'ONLINE' ? 'badge-cyan' : 'badge-neutral'}`}>
+                        {v.connectionStatus === 'ONLINE' ? 'ONLINE' : 'OFFLINE'}
+                      </span>
+                    </td>
+                    <td style={{ fontWeight: 500 }}>
+                      {v.assignedTo ? userName(v.assignedTo) : <span className="text-faint">Hệ thống</span>}
+                    </td>
+                    <td>
+                      {v.sharedDrivers && v.sharedDrivers.length > 0 ? (
+                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                          {v.sharedDrivers.map(driverId => (
+                            <span key={driverId} className="status-badge badge-neutral">
+                              {userName(driverId)}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-faint">—</span>
+                      )}
+                    </td>
+                    {/* 🔥 CẬP NHẬT: Thêm cột nút bấm xóa phần cứng */}
+                    <td style={{ textAlign: 'center' }}>
+                      <button 
+                        className="btn-icon text-danger" 
+                        title="Xóa thiết bị khỏi hệ thống"
+                        onClick={() => handleDelete(v.dbId, v.assignedTo)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px' }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {vehicles.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="empty-note">
+                      Chưa có thiết bị nào được đăng ký trong hệ thống.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {modal === 'add' && (

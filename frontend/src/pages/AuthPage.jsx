@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import "../styles/auth.css";
 import SystemPanel from "../components/SystemPanel";
-import { useAuth } from "../context/AuthContext.jsx";
+import { useAuth } from "../context/AuthContextInstance";
 
 /** Input dùng chung cho cả 2 form: icon, lỗi validate, toggle ẩn/hiện mật khẩu. */
 function FormField({

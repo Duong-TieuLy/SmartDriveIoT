@@ -1,24 +1,31 @@
-import { useState } from 'react'
-import { Mail, Phone, User, Shield, Pencil, X, Check } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Mail, User, Shield, Pencil, X, Check } from 'lucide-react'
 import AppTopbar from '../components/AppTopbar.jsx'
 import FormField from '../components/FormField.jsx'
-import { useAuth } from '../context/AuthContext.jsx'
+import { useAuth } from '../context/AuthContextInstance.js'
 import { ROLE_LABEL } from '../data/user.js'
 
 export default function Profile() {
   const { user, updateAccount } = useAuth()
   const [mode, setMode] = useState('view') // 'view' | 'edit'
-  const [draft, setDraft] = useState(user)
+  const [draft, setDraft] = useState(user || {})
   const [saved, setSaved] = useState(false)
+
+  // 🔥 CẬP NHẬT: Đảm bảo draft luôn đồng bộ khi dữ liệu user gốc trong Context thay đổi
+  useEffect(() => {
+    if (user) setDraft(user)
+  }, [user])
 
   if (!user) return null
 
   const initials = user.fullName
-    .split(' ')
-    .slice(-2)
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
+    ? user.fullName
+        .split(' ')
+        .slice(-2)
+        .map((w) => w[0])
+        .join('')
+        .toUpperCase()
+    : 'UX'
 
   const startEdit = () => {
     setDraft(user)
@@ -35,12 +42,18 @@ export default function Profile() {
     setDraft((d) => ({ ...d, [name]: value }))
   }
 
-  const handleSave = (e) => {
+  // 🔥 CẬP NHẬT: Chuyển đổi thành hàm async để chờ API xử lý
+  const handleSave = async (e) => {
     e.preventDefault()
-    // TODO: gọi API cập nhật thông tin thực tế, ví dụ PUT /api/users/me
-    updateAccount(user.id, draft)
-    setMode('view')
-    setSaved(true)
+    
+    const result = await updateAccount(user.id, draft)
+    
+    if (result && result.ok) {
+      setMode('view')
+      setSaved(true)
+    } else {
+      alert(result?.error || "Không thể lưu thông tin vào lúc này.")
+    }
   }
 
   return (
@@ -59,7 +72,7 @@ export default function Profile() {
             <span className="profile-avatar-lg">{initials}</span>
             <div>
               <h2>{user.fullName}</h2>
-              <span className="role-pill">{ROLE_LABEL[user.role]}</span>
+              <span className="role-pill">{ROLE_LABEL[user.role] || user.role}</span>
             </div>
             {mode === 'view' && (
               <button className="btn-outline btn-neutral btn-edit" type="button" onClick={startEdit}>
@@ -81,15 +94,10 @@ export default function Profile() {
                 Email
                 <span>{user.email}</span>
               </li>
-              {/* <li>
-                <Phone size={16} strokeWidth={1.75} />
-                Số điện thoại
-                <span>{user.phone || '—'}</span>
-              </li> */}
               <li>
                 <Shield size={16} strokeWidth={1.75} />
                 Vai trò
-                <span>{ROLE_LABEL[user.role]}</span>
+                <span>{ROLE_LABEL[user.role] || user.role}</span>
               </li>
             </ul>
           ) : (
@@ -98,27 +106,21 @@ export default function Profile() {
                 label="Họ và tên"
                 name="fullName"
                 icon={User}
-                value={draft.fullName}
+                value={draft.fullName || ''}
                 onChange={handleChange}
                 autoComplete="name"
+                required
               />
               <FormField
                 label="Email"
                 name="email"
                 type="email"
                 icon={Mail}
-                value={draft.email}
+                value={draft.email || ''}
                 onChange={handleChange}
                 autoComplete="email"
+                required
               />
-              {/* <FormField
-                label="Số điện thoại"
-                name="phone"
-                icon={Phone}
-                value={draft.phone}
-                onChange={handleChange}
-                autoComplete="tel"
-              /> */}
 
               <div className="profile-edit-actions">
                 <button className="btn-outline btn-neutral" type="button" onClick={cancelEdit}>
@@ -134,7 +136,9 @@ export default function Profile() {
           )}
 
           {saved && mode === 'view' && (
-            <p className="profile-saved-note">Đã lưu thay đổi thông tin cá nhân.</p>
+            <p className="profile-saved-note" style={{ color: '#22c55e', marginTop: '12px', fontSize: '14px' }}>
+              ✓ Đã lưu thay đổi thông tin cá nhân lên hệ thống đám mây.
+            </p>
           )}
         </div>
       </main>

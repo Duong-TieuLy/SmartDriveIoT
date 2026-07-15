@@ -1,5 +1,5 @@
 import { Navigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext.jsx'
+import { useAuth } from '../context/AuthContextInstance'
 
 /**
  * Chỉ cho phép người dùng có đúng `role` truy cập route con.

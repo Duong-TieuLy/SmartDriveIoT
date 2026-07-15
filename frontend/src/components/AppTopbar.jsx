@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { LogOut, Bell, LayoutGrid, UserRound } from 'lucide-react'
-import { useAuth } from '../context/AuthContext.jsx'
+import { useAuth } from '../context/AuthContextInstance.js'
 import { ROLE_LABEL } from '../data/user.js'
 
 export default function AppTopbar() {

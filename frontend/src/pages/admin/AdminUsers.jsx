@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Trash2, CheckCircle2, XCircle, AlertCircle, Users as UsersIcon, Car, Bug } from 'lucide-react'
 import AdminTopbar from '../../components/AdminTopbar.jsx'
-import { useAuth } from '../../context/AuthContext.jsx'
-import { useVehicles } from '../../context/VehicleContext.jsx'
+import { useAuth } from '../../context/AuthContextInstance.js'
+import { useVehicles } from '../../context/VehicleContextInstance.js'
 import { mockReports } from '../../data/reports.js'
 import { ROLE_LABEL } from '../../data/user.js'
 

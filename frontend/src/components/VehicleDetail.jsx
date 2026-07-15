@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { FilesetResolver, GestureRecognizer } from '@mediapipe/tasks-vision'
 import { DrawingUtils } from "@mediapipe/tasks-vision";
@@ -21,8 +21,8 @@ import {
   X,
 } from 'lucide-react'
 import AppTopbar from '../components/AppTopbar.jsx'
-import { useAuth } from '../context/AuthContext.jsx'
-import { useVehicles } from '../context/VehicleContext.jsx'
+import { useAuth } from '../context/AuthContextInstance.js'
+import { useVehicles } from '../context/VehicleContextInstance.js'
 import '../styles/VehicleDetail.css'
 
 const SEVERITY_OPTIONS = [
@@ -57,7 +57,22 @@ export default function VehicleDetail() {
   // Lấy danh sách xe và hàm sendCommand trực tiếp từ Context
   const { vehicles, sendCommand } = useVehicles()
 
-  const vehicle = vehicles.find((v) => v.id === id && v.assignedTo === user.id)
+  const vehicle = useMemo(() => {
+    if (!vehicles || !user?.id) return null;
+    
+    const currentUserId = Number(user.id);
+    
+    return vehicles.find((v) => {
+      const isIdMatch = v.id === id;
+      const isOwner = Number(v.assignedTo) === currentUserId;
+      
+      // Kiểm tra trong mảng sharedDrivers
+      const sharedDrivers = Array.isArray(v.sharedDrivers) ? v.sharedDrivers.map(Number) : [];
+      const isShared = sharedDrivers.includes(currentUserId);
+      
+      return isIdMatch && (isOwner || isShared);
+    });
+  }, [vehicles, id, user?.id]);
 
   const [power, setPower] = useState(true)
   const [mode, setMode] = useState('manual') 
