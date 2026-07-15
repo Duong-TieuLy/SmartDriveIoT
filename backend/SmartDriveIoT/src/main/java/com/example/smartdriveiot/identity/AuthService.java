@@ -41,6 +41,6 @@ public class AuthService {
         }
 
         // Chuyển đổi Role sang String để JwtTokenUtil nạp vào Claims mã hóa
-        return jwtTokenUtil.generateToken(user.getId(), user.getEmail(), user.getRole());
+        return jwtTokenUtil.generateToken(user.getId(), user.getEmail(), user.getRole(), user.getFullName());
     }
 }
