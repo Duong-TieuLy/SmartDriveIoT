@@ -13,6 +13,9 @@ export function VehicleProvider({ children }) {
   const globalWsRef = useRef(null)
   const [currentUserId, setCurrentUserId] = useState(null)
 
+  // NÂNG CẤP: State lưu trữ log debug từ xe để các component giao diện (ví dụ Terminal/Log View) có thể sub và hiển thị
+  const [deviceLogs, setDeviceLogs] = useState({}) 
+
   const getAuthHeader = () => {
     const token = localStorage.getItem(TOKEN_KEY)
     return {
@@ -57,36 +60,72 @@ export function VehicleProvider({ children }) {
       try {
         const data = JSON.parse(event.data)
         
-        // Giả sử Backend Spring Boot gửi gói tin cập nhật trạng thái kết nối:
-        // { "deviceId": "ESP32-TEST-MAC1", "connectionStatus": "ONLINE" / "OFFLINE" }
-        // Hoặc các gói tin Telemetry định kỳ chứa pin/khoảng cách:
-        // { "deviceId": "ESP32-TEST-MAC1", "distance": 20, "battery": 90 }
-        
-        if (data.deviceId) {
-          setVehicles((prevVehicles) =>
-            prevVehicles.map((v) => {
-              if (v.id === data.deviceId) {
-                // Tạo một object update tạm thời
-                const updates = {}
-                
-                // 1. Cập nhật trạng thái kết nối realtime nếu backend trả về
-                if (data.connectionStatus) {
-                  updates.connectionStatus = data.connectionStatus
-                  updates.status = data.connectionStatus === 'ONLINE' ? 'online' : 'offline'
-                }
-                
-                // 2. Tiện thể cập nhật luôn Pin và khoảng cách thời gian thực nếu có
-                if (data.battery !== undefined) updates.battery = data.battery
-                if (data.distance !== undefined) updates.realtimeDistance = data.distance // Để dùng bên màn Detail
+        // Bắt buộc phải có deviceId để biết cập nhật cho xe nào
+        if (!data.deviceId) return
 
-                return { ...v, ...updates }
-              }
-              return v
+        switch (data.type) {
+          case 'TELEMETRY':
+            // Cập nhật thông số khoảng cách/pin thời gian thực
+            setVehicles((prevVehicles) =>
+              prevVehicles.map((v) => 
+                v.id === data.deviceId 
+                  ? { ...v, realtimeDistance: data.distance, battery: data.battery !== undefined ? data.battery : v.battery } 
+                  : v
+              )
+            )
+            break
+
+          case 'STATUS_CHANGE':
+            // Cập nhật trạng thái ONLINE / OFFLINE của thiết bị
+            setVehicles((prevVehicles) =>
+              prevVehicles.map((v) => 
+                v.id === data.deviceId 
+                  ? { 
+                      ...v, 
+                      connectionStatus: data.connectionStatus, 
+                      status: data.connectionStatus === 'ONLINE' ? 'online' : 'offline' 
+                    } 
+                  : v
+              )
+            )
+            break
+
+          case 'DEVICE_LOG':
+            // Xử lý chuỗi Log văn bản thô (Mạch cầu H, Nút bấm debug...) từ ESP32 đưa lên công khai
+            console.log(`[🚗 Xe Debug Log - ${data.deviceId}]: ${data.message}`)
+            
+            // Cập nhật log vào state theo từng thiết bị (Lưu tối đa 50 dòng log gần nhất để tránh tràn RAM trình duyệt)
+            setDeviceLogs((prevLogs) => {
+              const currentDeviceLogs = prevLogs[data.deviceId] || []
+              const updatedLogs = [...currentDeviceLogs, { timestamp: new Date().toLocaleTimeString(), text: data.message }]
+              if (updatedLogs.length > 50) updatedLogs.shift() 
+              return { ...prevLogs, [data.deviceId]: updatedLogs }
             })
-          )
+            break
+
+          default:
+            // Dự phòng cho cấu hình cũ hoặc data định dạng khác chưa phân loại cụ thể
+            if (data.distance !== undefined || data.connectionStatus) {
+              setVehicles((prevVehicles) =>
+                prevVehicles.map((v) => {
+                  if (v.id === data.deviceId) {
+                    const updates = {}
+                    if (data.connectionStatus) {
+                      updates.connectionStatus = data.connectionStatus
+                      updates.status = data.connectionStatus === 'ONLINE' ? 'online' : 'offline'
+                    }
+                    if (data.distance !== undefined) updates.realtimeDistance = data.distance
+                    return { ...v, ...updates }
+                  }
+                  return v
+                })
+              )
+            }
+            break
         }
       } catch (err) {
-        console.log('[Global WS] Dữ liệu không phải JSON:', event.data)
+        // Trường hợp chuỗi văn bản thuần túy lọt qua bộ lọc của Backend (hiếm khi xảy ra nữa)
+        console.error('[Global WS] Lỗi xử lý hoặc cấu trúc dữ liệu lạ:', event.data, err)
       }
     }
 
@@ -98,7 +137,8 @@ export function VehicleProvider({ children }) {
       ws.close()
     }
   }, [currentUserId])
-// --- HÀM GỬI LỆNH ĐIỀU KHIỂN CHUNG ---
+
+  // --- HÀM GỬI LỆNH ĐIỀU KHIỂN CHUNG ---
   const sendCommand = (macAddress, cmd) => {
     if (globalWsRef.current && globalWsRef.current.readyState === WebSocket.OPEN) {
       const payload = { macAddress, cmd }
@@ -108,9 +148,10 @@ export function VehicleProvider({ children }) {
       console.warn('❌ WebSocket chưa kết nối hoặc đã bị ngắt!')
     }
   }
+
   // 1. LẤY TOÀN BỘ DANH SÁCH XE (ADMIN)
   const fetchAllVehicles = async (userId) => {
-    if(userId) setCurrentUserId(userId) // Lưu lại userId để trigger chạy WS
+    if(userId) setCurrentUserId(userId) 
     setLoading(true)
     setError(null)
     try {
@@ -128,7 +169,7 @@ export function VehicleProvider({ children }) {
   // 2. LẤY DANH SÁCH XE CỦA TÔI
   const fetchMyVehicles = async (userId) => {
     if (!userId) return
-    setCurrentUserId(userId) // Lưu lại userId để trigger chạy WS
+    setCurrentUserId(userId) 
     setLoading(true)
     setError(null)
     try {
@@ -143,7 +184,6 @@ export function VehicleProvider({ children }) {
     }
   }
 
-  // CÁC HÀM KHÁC GIỮ NGUYÊN...
   const addVehicle = async (data, userId) => { /* ... */ }
   const requestVehicle = async (dbId, currentUserId, driverEmail) => { /* ... */ }
   const getDeviceTelemetry = async (dbId) => { /* ... */ }
@@ -154,7 +194,7 @@ export function VehicleProvider({ children }) {
   return (
     <VehicleContext.Provider
       value={{
-        vehicles, loading, error, globalWsRef,sendCommand, // Export thêm biến ref này để sử dụng gửi lệnh ở trang Detail
+        vehicles, loading, error, globalWsRef, sendCommand, deviceLogs, // Export thêm `deviceLogs` để màn hình Detail xe dùng hiển thị Console Log box
         fetchMyVehicles, fetchAllVehicles, addVehicle, requestVehicle, getDeviceTelemetry,
         approveRequest, denyRequest, removeVehicle
       }}

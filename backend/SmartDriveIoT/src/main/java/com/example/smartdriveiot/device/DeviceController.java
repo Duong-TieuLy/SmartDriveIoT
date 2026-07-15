@@ -14,7 +14,6 @@ import java.util.List;
 public class DeviceController {
 
     private final DeviceService deviceService;
-
     // Đăng ký một xe mới (Truyền ID người dùng sở hữu xe qua tham số cấu hình hoặc header)
     @PostMapping("/register/{userId}")
     public ResponseEntity<DeviceResponse> registerDevice(@RequestBody DeviceCreateRequest request, @PathVariable Long userId) {
@@ -46,5 +45,20 @@ public class DeviceController {
     @PreAuthorize("hasRole('ADMIN')") // Ghi đè chỉ cho phép ADMIN truy cập
     public ResponseEntity<List<DeviceResponse>> getAllDevices() {
         return ResponseEntity.ok(deviceService.getAllDevices());
+    }
+    @DeleteMapping("/{deviceId}/owner/{userId}")
+    public ResponseEntity<String> deleteDevice(@PathVariable Long deviceId, @PathVariable Long userId) {
+        deviceService.deleteDevice(deviceId, userId);
+        return ResponseEntity.ok("Xóa thiết bị thành công!");
+    }
+    @GetMapping("/{deviceId}/drivers/owner/{userId}")
+    public ResponseEntity<List<Long>> getDriversSharedForDevice(
+            @PathVariable Long deviceId,
+            @PathVariable Long userId) {
+        return ResponseEntity.ok(deviceService.getDriversSharedForDevice(deviceId, userId));
+    }
+    @GetMapping("/shared-with-me/{driverId}")
+    public ResponseEntity<List<DeviceResponse>> getSharedDevicesForMe(@PathVariable Long driverId) {
+        return ResponseEntity.ok(deviceService.getSharedDevicesForMe(driverId));
     }
 }

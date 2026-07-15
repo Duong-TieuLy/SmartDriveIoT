@@ -36,7 +36,15 @@ public class UserService {
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
     }
+    @org.springframework.transaction.annotation.Transactional
     public void deleteUser(Long id) {
-        userRepository.deleteById(id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng cần xóa!"));
+
+        // 🟢 Giải pháp an toàn khóa ngoại:
+        // Nếu user này có thiết bị, bạn cần xử lý chúng trước (ví dụ: gỡ owner hoặc xóa thiết bị đó)
+        // deviceRepository.deleteByOwner(user);
+
+        userRepository.delete(user);
     }
 }

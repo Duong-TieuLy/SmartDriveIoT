@@ -88,7 +88,44 @@ public class DeviceService {
                 .map(this::mapToDeviceResponse) // Hoặc hàm convert tương đương của bạn
                 .toList();
     }
+    @Transactional
+    public void deleteDevice(Long deviceId, Long currentUserId) {
+        Device device = deviceRepository.findById(deviceId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy thiết bị để xóa!"));
 
+        // Kiểm tra quyền: Phải là chủ xe (hoặc logic ADMIN xử lý trên tầng Controller)
+        if (!device.getOwner().getId().equals(currentUserId)) {
+            throw new RuntimeException("Bạn không có quyền xóa thiết bị này!");
+        }
+
+        // Gỡ bỏ mối quan hệ ManyToMany với drivers trước khi xóa để tránh lỗi ràng buộc dữ liệu
+        device.getDrivers().clear();
+        deviceRepository.delete(device);
+    }
+    @Transactional(readOnly = true)
+    public List<Long> getDriversSharedForDevice(Long deviceId, Long currentUserId) {
+        Device device = deviceRepository.findById(deviceId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy thiết bị!"));
+
+        // Chỉ chủ xe mới được xem danh sách những người mình đã share
+        if (!device.getOwner().getId().equals(currentUserId)) {
+            throw new RuntimeException("Bạn không có quyền xem danh sách chia sẻ của thiết bị này!");
+        }
+
+        return device.getDrivers().stream()
+                .map(User::getId)
+                .collect(Collectors.toList());
+    }
+    @Transactional(readOnly = true)
+    public List<DeviceResponse> getSharedDevicesForMe(Long driverId) {
+        if (!userRepository.existsById(driverId)) {
+            throw new RuntimeException("Không tìm thấy người dùng!");
+        }
+
+        return deviceRepository.findByDrivers_Id(driverId).stream()
+                .map(this::mapToDeviceResponse)
+                .collect(Collectors.toList());
+    }
     private DeviceResponse mapToDeviceResponse(Device device) {
         return new DeviceResponse(
                 device.getId(),

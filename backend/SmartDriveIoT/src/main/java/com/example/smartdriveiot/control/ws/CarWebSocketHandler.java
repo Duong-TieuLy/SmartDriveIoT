@@ -1,12 +1,12 @@
 package com.example.smartdriveiot.control.ws;
 
 import com.example.smartdriveiot.common.enums.Status;
-import com.example.smartdriveiot.control.ControlService; // Import lớp xử lý lưu ControlHistory của bạn
+import com.example.smartdriveiot.control.ControlService;
 import com.example.smartdriveiot.device.Device;
 import com.example.smartdriveiot.device.DeviceRepository;
 import com.example.smartdriveiot.device.TelemetryData;
 import com.example.smartdriveiot.device.TelemetryDataRepository;
-import com.fasterxml.jackson.databind.ObjectMapper; // Dùng để đọc dữ liệu JSON từ User
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -28,17 +28,22 @@ public class CarWebSocketHandler extends TextWebSocketHandler {
     private final WebSocketSessionManager sessionManager;
     private final DeviceRepository deviceRepository;
     private final TelemetryDataRepository telemetryDataRepository;
-    private final ControlService controlService; // Tiêm vào để lưu lịch sử điều khiển
+    private final ControlService controlService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // Lưu trữ chế độ vận hành trên RAM của từng thiết bị (Key: MAC Address, Value: "MANUAL" hoặc "AUTO")
+    // Lưu trữ chế độ vận hành trên RAM (Key: MAC Address, Value: "MANUAL" hoặc "AUTO")
     private static final Map<String, String> deviceModes = new ConcurrentHashMap<>();
+
+    // NÂNG CẤP: Lưu trạng thái di chuyển tự động hiện tại của xe để tránh spam lệnh (Ví dụ: "FORWARD", "LEFT")
+    private static final Map<String, String> deviceAutoStates = new ConcurrentHashMap<>();
+
+    private static final double CRITICAL_DISTANCE_CM = 20.0;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         Map<String, String> params = getQueryParams(session.getUri());
         String type = params.get("type");
-        String id = params.get("id");     // Mã MAC Address hoặc User ID
+        String id = params.get("id");
 
         if (type == null || id == null) {
             session.close(CloseStatus.BAD_DATA);
@@ -47,10 +52,10 @@ public class CarWebSocketHandler extends TextWebSocketHandler {
 
         if ("DEVICE".equalsIgnoreCase(type)) {
             sessionManager.addDeviceSession(id, session);
-            deviceModes.put(id, "MANUAL"); // Mặc định xe kết nối mới sẽ ở chế độ THỦ CÔNG
+            deviceModes.put(id, "MANUAL");
+            deviceAutoStates.put(id, "STOP"); // Mặc định xe đứng yên hoặc chưa kích hoạt auto state
             log.info("Xe IoT [{}] đã kết nối mạng thành công! Chế độ mặc định: MANUAL", id);
 
-            // Cập nhật trạng thái xe thành ONLINE ở database
             updateDeviceStatus(id, Status.ONLINE);
 
         } else if ("USER".equalsIgnoreCase(type)) {
@@ -64,25 +69,29 @@ public class CarWebSocketHandler extends TextWebSocketHandler {
         String payload = message.getPayload();
         Map<String, String> params = getQueryParams(session.getUri());
         String type = params.get("type");
-        String id = params.get("id"); // Nếu type=USER thì id chính là userId, nếu type=DEVICE thì id là MAC
+        String id = params.get("id");
 
-        // ========================================================
-        // KỊCH BẢN 1: NGƯỜI DÙNG (USER) GỬI LỆNH ĐIỀU KHIỂN HOẶC ĐỔI CHẾ ĐỘ
-        // ========================================================
         if ("USER".equalsIgnoreCase(type)) {
             try {
-                // Định dạng JSON từ Web: {"macAddress":"ESP32-TEST-MAC", "cmd":"FORWARD"} hoặc {"macAddress":"ESP32-TEST-MAC", "cmd":"MODE_AUTO"}
                 Map<String, String> request = objectMapper.readValue(payload, Map.class);
                 String macAddress = request.get("macAddress");
                 String command = request.get("cmd").toUpperCase();
 
                 // 1. Thao tác chuyển đổi trạng thái chế độ tự lái
                 if (command.startsWith("MODE_")) {
-                    String newMode = command.replace("MODE_", ""); // Tách ra chữ "MANUAL" hoặc "AUTO"
+                    String newMode = command.replace("MODE_", "");
                     deviceModes.put(macAddress, newMode);
                     log.info("🔄 Chuyển xe [{}] sang chế độ vận hành: {}", macAddress, newMode);
 
-                    // Báo hiệu xuống mạch thực tế (để hiển thị LED hoặc còi báo nếu cần)
+                    // Nếu chuyển từ AUTO về MANUAL, reset trạng thái tự động lái của xe
+                    if ("MANUAL".equals(newMode)) {
+                        deviceAutoStates.put(macAddress, "STOP");
+                    } else if ("AUTO".equals(newMode)) {
+                        // Khi vừa bật AUTO, ra lệnh cho xe tiến về phía trước luôn
+                        deviceAutoStates.put(macAddress, "FORWARD");
+                        sessionManager.sendDataToDevice(macAddress, "FORWARD");
+                    }
+
                     sessionManager.sendDataToDevice(macAddress, "SET_MODE:" + newMode);
                     return;
                 }
@@ -93,10 +102,10 @@ public class CarWebSocketHandler extends TextWebSocketHandler {
                     return;
                 }
 
-                // 3. Nếu đang ở chế độ MANUAL, bắn lệnh thô xuống cho xe thực thi (FORWARD, BACKWARD, LEFT, RIGHT, STOP)
+                // 3. Nếu đang ở chế độ MANUAL, bắn lệnh thô xuống cho xe thực thi
                 sessionManager.sendDataToDevice(macAddress, command);
 
-                // 4. Ghi nhận lịch sử thao tác của người dùng vào Database
+                // 4. Ghi nhận lịch sử thao tác vào DB
                 controlService.saveCommand(macAddress, id, command, "SENT");
                 log.info("[🎮 MANUAL] Đã chuyển tiếp lệnh [{}] tới xe [{}] từ Người dùng [{}]", command, macAddress, id);
 
@@ -106,32 +115,56 @@ public class CarWebSocketHandler extends TextWebSocketHandler {
         }
 
         // ========================================================
-        // KỊCH BẢN 2: XE (DEVICE) BẮN DỮ LIỆU CẢM BIẾN SIÊU ÂM LÊN
-        // ========================================================
+// KỊCH BẢN 2: XE (DEVICE) BẮN DỮ LIỆU LÊN
+// ========================================================
         else if ("DEVICE".equalsIgnoreCase(type)) {
-            log.info("Nhận dữ liệu siêu âm từ xe [{}]: {} cm", id, payload);
-
-            // 1. Chuyển tiếp dữ liệu thời gian thực tới toàn bộ Giao diện người dùng
-            sessionManager.sendDataToAllUsers("{\"deviceId\":\"" + id + "\",\"distance\": " + payload + "}");
-
-            // 2. Xử lý lưu thông tin khoảng cách & kiểm tra va chạm tự động
             try {
-                Double distance = Double.parseDouble(payload);
+                // Cố gắng parse thử xem có phải là số đo khoảng cách từ cảm biến siêu âm không
+                double distance = Double.parseDouble(payload);
+
+                // 1. Nếu là số: Gửi dữ liệu khoảng cách hợp lệ về Frontend
+                sessionManager.sendDataToAllUsers(String.format(
+                        java.util.Locale.US,
+                        "{\"type\":\"TELEMETRY\", \"deviceId\":\"%s\", \"distance\": %.2f}",
+                        id, distance
+                ));
 
                 // -------------- LOGIC TỰ ĐỘNG TRÁNH VẬT CẢN (AUTO MODE) --------------
                 if ("AUTO".equals(deviceModes.get(id))) {
-                    if (distance > 0 && distance < 20.0) { // Khoảng cách nguy hiểm cấu hình là < 20cm
-                        log.warn("🚨 [CẢNH BÁO AUTO] Xe [{}] phát hiện vật cản quá gần ({} cm). Tiến hành tự rẽ tránh!", id, distance);
+                    String currentAutoState = deviceAutoStates.getOrDefault(id, "FORWARD");
 
-                        // Bước A: Ra lệnh ép xe quẹo gấp (Ví dụ rẽ LEFT để tránh)
+                    if (distance > 0 && distance < CRITICAL_DISTANCE_CM) {
+                        // VÙNG NGUY HIỂM: Gặp vật cản
+                        // Nâng cấp: Thay vì chỉ gửi 1 lần duy nhất rồi im lặng, ta duy trì gửi lệnh LEFT
+                        // để đảm bảo xe nhận đủ động lực rẽ thoát khỏi vật cản (đề phòng mất gói tin UART)
+                        deviceAutoStates.put(id, "LEFT");
                         sessionManager.sendDataToDevice(id, "LEFT");
 
-                        // Bước B: Lưu lịch sử hệ thống tự điều khiển (user_id = null, status = "AUTO_STOPPED")
-                        controlService.saveCommand(id, null, "LEFT", "AUTO_STOPPED");
+                        // Chỉ ghi nhận vào Database một lần đầu tiên khi đổi trạng thái để tránh làm ngập DB
+                        if (!"LEFT".equals(currentAutoState)) {
+                            log.warn("🚨 [AUTO] Xe [{}] phát hiện vật cản ({} cm). Tiến hành tự rẽ TRÁI!", id, distance);
+                            controlService.saveCommand(id, null, "LEFT", "AUTO_STOPPED");
+                        }
+
+                    } else if (distance >= CRITICAL_DISTANCE_CM) {
+                        // VÙNG AN TOÀN: Đường thoáng
+                        // Nếu trước đó xe đang rẽ tránh vật cản hoặc đang đứng yên, lập tức phát lệnh tiến thẳng
+                        if (!"FORWARD".equals(currentAutoState)) {
+                            deviceAutoStates.put(id, "FORWARD");
+                            log.info("✅ [AUTO] Đường đã thoáng ({} cm). Xe [{}] quay lại trạng thái tiến thẳng FORWARD.", distance, id);
+
+                            sessionManager.sendDataToDevice(id, "FORWARD");
+                            controlService.saveCommand(id, null, "FORWARD", "AUTO_RESUMED");
+                        } else {
+                            // Đảm bảo xe luôn chạy: Gửi giữ nhịp FORWARD định kỳ nếu xe đang ở trạng thái tiến
+                            // Điều này giúp xe không bị dừng lại do các xung nhiễu hoặc lệnh STOP vô tình từ phần cứng
+                            sessionManager.sendDataToDevice(id, "FORWARD");
+                        }
                     }
                 }
-                // ---------------------------------------------------------------------
+                //---------------------------------------------------------------------
 
+                // Lưu DB
                 Optional<Device> deviceOpt = deviceRepository.findByMacAddress(id);
                 if (deviceOpt.isPresent()) {
                     TelemetryData telemetryData = TelemetryData.builder()
@@ -139,11 +172,18 @@ public class CarWebSocketHandler extends TextWebSocketHandler {
                             .distanceCm(distance)
                             .build();
                     telemetryDataRepository.save(telemetryData);
-                } else {
-                    log.warn("Thiết bị có mã MAC [{}] chưa được đăng ký trong hệ thống để lưu DB!", id);
                 }
+
             } catch (NumberFormatException e) {
-                log.info("Tin nhắn chuỗi văn bản thông thường từ xe [{}]: {}", id, payload);
+                // 2. Nếu BỊ LỖI PARSE: Chứng tỏ đây là chuỗi Log Debug từ ESP32 (Ví dụ: ">>> LỆNH: XE DỪNG... <<<")
+                log.info(" Tin nhắn log từ xe [{}]: {}", id, payload);
+
+                // Bọc chuỗi này vào JSON hợp lệ (thêm dấu ngoặc kép cho phần text) để gửi về Frontend hiển thị lên màn hình console/log của User nếu cần
+                String safeLogJson = String.format(
+                        "{\"type\":\"DEVICE_LOG\", \"deviceId\":\"%s\", \"message\":\"%s\"}",
+                        id, payload.replace("\"", "\\\"") // Escape dấu nháy kép nếu có trong log của ESP32
+                );
+                sessionManager.sendDataToAllUsers(safeLogJson);
             }
         }
     }
@@ -156,10 +196,10 @@ public class CarWebSocketHandler extends TextWebSocketHandler {
 
         if ("DEVICE".equalsIgnoreCase(type)) {
             sessionManager.removeDeviceSession(id);
-            deviceModes.remove(id); // Làm sạch bộ nhớ RAM khi thiết bị mất kết nối
+            deviceModes.remove(id);
+            deviceAutoStates.remove(id); // Dọn dẹp bộ nhớ RAM cho Auto State
             log.warn("Xe IoT [{}] đã mất kết nối (OFFLINE)!", id);
 
-            // Cập nhật trạng thái xe thành OFFLINE ở database
             updateDeviceStatus(id, Status.OFFLINE);
 
         } else if ("USER".equalsIgnoreCase(type)) {

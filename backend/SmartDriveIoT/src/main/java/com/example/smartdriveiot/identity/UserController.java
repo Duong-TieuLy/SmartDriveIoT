@@ -32,12 +32,14 @@ public class UserController {
     // Xem danh sách tài khoản (Chỉ duy nhất ADMIN được gọi)
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
+
     public ResponseEntity<List<UserResponse>> getAllUsers() {
         return ResponseEntity.ok(userService.getAllUsers());
     }
-    @DeleteMapping
+    @DeleteMapping("/{id}") // 🟢 Bổ sung /{id} tại đây
     @PreAuthorize("hasRole('ADMIN')")
-    public void deleteUser(@PathVariable Long id) {
+    public ResponseEntity<String> deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
+        return ResponseEntity.ok("Xóa người dùng thành công!"); // 🟢 Trả về phản hồi rõ ràng
     }
 }

@@ -1,6 +1,7 @@
 package com.example.smartdriveiot.control;
 import com.example.smartdriveiot.device.Device;
 import com.example.smartdriveiot.identity.User;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -21,11 +22,13 @@ public class ControlHistory {
     // Lệnh này gửi cho xe nào
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "device_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "controlHistories", "telemetries"})
     private Device device;
 
-    // Ai là người ra lệnh (Sử dụng ON DELETE SET NULL bên DB bằng cách gán Optional nullable)
+    // Ai là người ra lệnh
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = true)
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "password", "roles"})
     private User user;
 
     @Column(nullable = false, length = 30)

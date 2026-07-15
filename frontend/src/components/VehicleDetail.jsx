@@ -148,16 +148,18 @@ export default function VehicleDetail() {
     }
   }
 
+// 1. Thay đổi hàm chuyển đổi Tab chế độ trên giao diện
   const handleModeChange = (next) => {
     setMode(next)
     setManualInput(null)
     setAutoRunning(false)
     
-    if (next === 'auto') {
-      triggerCommand('MODE_AUTO')
-    } else {
+    // Nếu người dùng chủ động click quay về tab thủ công, đưa xe về chế độ an toàn
+    if (next === 'manual') {
       triggerCommand('MODE_MANUAL')
+      triggerCommand('STOP')
     }
+    // Khi sang tab 'auto', chúng ta GIỮ NGUYÊN trạng thái xe, chưa kích hoạt lệnh gì cả
   }
 
   const handleDirectionPress = (direction) => {
@@ -174,11 +176,14 @@ export default function VehicleDetail() {
     triggerCommand('STOP')
   }
 
-  const handleToggleAuto = () => {
+const handleToggleAuto = () => {
     if (autoRunning) {
+      // Nếu đang chạy tự động mà bấm Dừng: trả về trạng thái thủ công và dừng xe
+      triggerCommand('MODE_MANUAL')
       triggerCommand('STOP')
     } else {
-      triggerCommand('FORWARD') 
+      // BẮT ĐẦU TỰ ĐỘNG: Kích hoạt chế độ tự động lái trên xe
+      triggerCommand('MODE_AUTO')
     }
     setAutoRunning((prev) => !prev)
   }
