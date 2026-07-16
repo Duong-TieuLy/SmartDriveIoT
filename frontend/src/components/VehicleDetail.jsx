@@ -24,6 +24,7 @@ import AppTopbar from '../components/AppTopbar.jsx'
 import { useAuth } from '../context/AuthContextInstance.js'
 import { useVehicles } from '../context/VehicleContextInstance.js'
 import '../styles/VehicleDetail.css'
+import VehicleHistoryPanel from '../components/VehicleHistoryPanel.jsx'
 
 const SEVERITY_OPTIONS = [
   { value: 'low', label: 'Nhẹ — vẫn dùng được' },
@@ -666,6 +667,13 @@ const handleToggleAuto = () => {
               </div>
             )}
           </div>
+        </section>
+
+        <section className="dash-section">
+          <div className="section-heading">
+            <h2>Lịch sử điều khiển</h2>
+          </div>
+          <VehicleHistoryPanel vehicle={vehicle} />
         </section>
       </main>
 
