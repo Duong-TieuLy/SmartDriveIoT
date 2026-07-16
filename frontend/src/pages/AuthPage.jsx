@@ -158,7 +158,7 @@ function LoginForm({ onSwitchToRegister }) {
         <div className="avc-demo-hint">
           <Info size={14} />
           <span>
-            Tài khoản demo — Người dùng: <strong>user@autox.vn</strong> / user123 · Quản trị:{" "}
+            Tài khoản demo — Người dùng: <strong>user@autox.vn</strong> / user1234 · Quản trị:{" "}
             <strong>admin@autox.vn</strong> / admin123
           </span>
         </div>
