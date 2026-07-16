@@ -358,3 +358,130 @@
   height: 100%;
   pointer-events: none; /* Giúp thao tác click chuột xuyên qua canvas */
 }
+
+/* ---------- Lịch sử điều khiển ---------- */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-card {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface);
+  transition: border-color 0.15s ease;
+}
+.history-card:hover {
+  border-color: var(--border);
+}
+
+.history-card-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-faint);
+}
+.history-card-head:hover {
+  color: var(--cyan);
+}
+
+.history-card-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.history-mode-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--cyan-dim);
+  color: var(--cyan);
+  border: 1px solid rgba(0, 229, 199, 0.25);
+}
+
+.history-mode-badge.auto {
+  background: rgba(255, 176, 32, 0.12);
+  color: var(--amber);
+  border-color: rgba(255, 176, 32, 0.3);
+}
+
+.history-card-date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.history-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px 16px;
+  padding: 0 18px 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.history-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.history-summary-item svg {
+  color: var(--cyan);
+  flex-shrink: 0;
+}
+
+.history-sensor-log {
+  border-top: 1px solid var(--border-soft);
+  background: var(--surface-2);
+  padding: 14px 18px 18px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.history-sensor-log-head,
+.history-sensor-log-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1.5fr;
+  gap: 8px;
+}
+
+.history-sensor-log-head {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  padding-bottom: 8px;
+  text-transform: uppercase;
+  font-size: 10.5px;
+}
+
+.history-sensor-log-row {
+  padding: 6px 0;
+  border-top: 1px dashed var(--border-soft);
+  color: var(--text);
+}
+.history-sensor-log-row:first-child {
+  border-top: none;
+}
+
+@media (max-width: 640px) {
+  .history-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
