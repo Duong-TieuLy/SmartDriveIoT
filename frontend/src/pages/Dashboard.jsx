@@ -1,13 +1,16 @@
 // src/pages/Dashboard.jsx
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Car, Clock3, Zap, Search, Share2 } from 'lucide-react'
+import { Car, Clock3, Zap, Search, Share2, PlusCircle } from 'lucide-react'
 import AppTopbar from '../components/AppTopbar.jsx'
 import VehicleCard from '../components/VehicleCard.jsx'
 import { useAuth } from '../context/AuthContextInstance.js'
 import { useVehicles } from '../context/VehicleContextInstance.js'
 import Modal from '../components/Modal.jsx' 
 import FormField from '../components/FormField.jsx'
+
+const emptyForm = { name: '', macAddress: '' }
+
 export default function Dashboard() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -15,12 +18,16 @@ export default function Dashboard() {
   const { 
     vehicles, 
     fetchUserVehiclesCombined, 
-    requestVehicle 
+    requestVehicle,
+    addVehicle
   } = useVehicles()
   
   const [query, setQuery] = useState('')
   const [shareTarget, setShareTarget] = useState(null)
   const [driverEmail, setDriverEmail] = useState('')
+
+  const [modal, setModal] = useState(null)
+  const [form, setForm] = useState(emptyForm)
 
   useEffect(() => {
     if (user && user.id) {
@@ -43,38 +50,58 @@ export default function Dashboard() {
     if (!driverEmail.trim() || !shareTarget) return
 
     await requestVehicle(shareTarget.dbId, user.id, driverEmail.trim())
-    handleCloseShareModal() // Đóng modal sau khi hoàn thành
+    handleCloseShareModal()
+  }
+
+  const openRegister = () => {
+    setForm(emptyForm)
+    setModal('register')
+  }
+  const closeRegisterModal = () => {
+    setModal(null)
+    setForm(emptyForm)
+  }
+
+  const handleFormChange = (e) => {
+    const { name, value } = e.target
+    setForm((f) => ({ ...f, [name]: value }))
+  }
+
+  const handleSubmitVehicle = async (e) => {
+    e.preventDefault()
+    if (!form.name.trim() || !form.macAddress.trim()) {
+      alert('Vui lòng nhập đầy đủ thông tin thiết bị!')
+      return
+    }
+
+    const success = await addVehicle(
+      { name: form.name, macAddress: form.macAddress },
+      user.id
+    )
+    if (success) {
+      closeRegisterModal()
+    }
   }
 
   const handleUse = (macAddress) => {
-    console.log("Đang điều hướng tới:", `/vehicle/${macAddress}`);
     navigate(`/vehicle/${macAddress}`) 
   }
-  useEffect(() => {
-    console.log("Current User ID:", user?.id);
-    console.log("Vehicles Data:", vehicles);
-  }, [vehicles, user]);
-// Thay đoạn viewVehicles cũ bằng đoạn này
+
   const viewVehicles = useMemo(() => {
     if (!user || !user.id) return vehicles;
 
     return vehicles.map((v) => {
       const currentUserId = Number(user.id);
       const assignedTo = Number(v.assignedTo);
-      
-      // Ép kiểu tất cả sharedDrivers về Number để so sánh an toàn
       const drivers = Array.isArray(v.sharedDrivers) 
         ? v.sharedDrivers.map(Number) 
         : [];
         
       const isOwner = assignedTo === currentUserId;
       const isShared = drivers.includes(currentUserId);
-      
-      console.log(`Xe: ${v.name}, Owner: ${assignedTo}, User: ${currentUserId}, IsShared: ${isShared}`);
 
       return {
         ...v,
-        // Status chỉ nên là 'available' nếu là chủ hoặc được share
         status: (isOwner || isShared) ? 'available' : 'locked',
         requestStatus: v.requestedBy === user.id ? v.requestStatus : 'none',
       };
@@ -104,12 +131,14 @@ export default function Dashboard() {
 
       <main className="dash-main">
         <section className="dash-hero">
-          <div>
-            <span className="eyebrow">BẢNG ĐIỀU KHIỂN</span>
-            <h1 className="dash-title">Chào mừng trở lại</h1>
-            <p className="dash-subtitle">
-              Chọn xe khả dụng để bắt đầu chuyến đi, hoặc chia sẻ quyền sử dụng xe với các tài xế khác.
-            </p>
+          <div className="dash-hero-top">
+            <div>
+              <span className="eyebrow">BẢNG ĐIỀU KHIỂN</span>
+              <h1 className="dash-title">Chào mừng trở lại</h1>
+              <p className="dash-subtitle">
+                Chọn xe khả dụng để bắt đầu chuyến đi, hoặc chia sẻ quyền sử dụng xe với các tài xế khác.
+              </p>
+            </div>
           </div>
 
           <div className="dash-stats">
@@ -143,14 +172,22 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <label className="dash-search dash-search-standalone">
-          <Search size={16} strokeWidth={1.75} />
-          <input
-            placeholder="Tìm xe theo tên, biển số, khu vực…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </label>
+        {/* 🔥 CẬP NHẬT: thanh tìm kiếm + nút Thêm xe nằm chung một hàng */}
+        <div className="dash-toolbar">
+          <label className="dash-search dash-search-standalone">
+            <Search size={16} strokeWidth={1.75} />
+            <input
+              placeholder="Tìm xe theo tên, biển số, khu vực…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+
+          <button className="btn-add-vehicle" type="button" onClick={openRegister}>
+            <PlusCircle size={16} strokeWidth={2} />
+            Thêm xe
+          </button>
+        </div>
 
         <>
           <section className="dash-section">
@@ -194,6 +231,40 @@ export default function Dashboard() {
             )}
           </section>
         </>
+
+        {modal === 'register' && (
+          <Modal title="Đăng ký thiết bị IoT mới" onClose={closeRegisterModal}>
+            <form className="auth-form" onSubmit={handleSubmitVehicle}>
+              <FormField
+                label="Tên thiết bị / Tên xe"
+                name="name"
+                value={form.name}
+                onChange={handleFormChange}
+                placeholder="Ví dụ: Xe tự hành AutoX S1"
+                required
+              />
+              <FormField
+                label="Địa chỉ MAC (MAC Address)"
+                name="macAddress"
+                value={form.macAddress}
+                onChange={handleFormChange}
+                placeholder="Ví dụ: 24:0A:C4:X5:Y6:Z7"
+                required
+              />
+
+              <div className="profile-edit-actions" style={{ marginTop: '24px' }}>
+                <button className="btn-outline btn-neutral" type="button" onClick={closeRegisterModal}>
+                  Hủy
+                </button>
+                <button className="btn-primary dash-register-btn" type="submit">
+                  <PlusCircle size={17} strokeWidth={2} />
+                  Đăng ký xe mới
+                </button>
+              </div>
+            </form>
+          </Modal>
+        )}
+
         {shareTarget && (
           <Modal title="Chia sẻ quyền sử dụng xe" onClose={handleCloseShareModal}>
             <form className="auth-form" onSubmit={handleConfirmShare}>

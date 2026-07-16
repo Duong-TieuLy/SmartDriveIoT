@@ -17,7 +17,7 @@ export const mockAccounts = [
   {
     id: 'acc-demo-user',
     email: 'user@autox.vn',
-    password: 'user123',
+    password: 'user1234',
     role: 'passenger',
     fullName: 'Nguyễn Văn A',
     phone: '0901 234 567',
