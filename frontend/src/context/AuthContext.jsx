@@ -3,7 +3,8 @@ import { jwtDecode } from 'jwt-decode'
 import { AuthContext } from  './AuthContextInstance'
 
 const TOKEN_KEY = 'autox_token'
-const API_BASE_URL = import.meta.env.VITE_API_URL
+const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+const API_BASE_URL = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl
 
 function getUserFromToken(token) {
   if (!token) return null
@@ -65,7 +66,10 @@ const login = async (email, password) => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'any-value-here'
+      },
       body: JSON.stringify({ email, password }),
     })
 
@@ -111,7 +115,10 @@ const register = async ({ fullName, email, password }) => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'any-value-here'
+      },
       body: JSON.stringify({ fullName, email, password }),
     })
 
@@ -148,7 +155,10 @@ const register = async ({ fullName, email, password }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin/users/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'any-value-here'
+        }
       })
       const data = await response.json()
       

@@ -1,7 +1,9 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react'
 import { VehicleContext } from './VehicleContextInstance'
 
-const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/devices`
+const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+const cleanApiUrl = rawApiUrl.endsWith('/') ? rawApiUrl.slice(0, -1) : rawApiUrl
+const API_BASE_URL = `${cleanApiUrl}/api/devices`
 const TOKEN_KEY = 'autox_token' 
 
 export function VehicleProvider({ children }) {
@@ -44,7 +46,8 @@ export function VehicleProvider({ children }) {
     if (!currentUserId) return
 
     const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-    const wsBaseUrl = apiBaseUrl.replace(/^http/, 'ws')
+    const cleanApi = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl
+    const wsBaseUrl = cleanApi.replace(/^http/, 'ws')
     const wsUrl = `${wsBaseUrl}/ws/iot?type=USER&id=${currentUserId}`
 
     const ws = new WebSocket(wsUrl)
